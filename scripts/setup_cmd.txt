@@ -1,0 +1,25 @@
+    1  sudo visudo
+    2  sudo apt update
+    3  sudo apt upgrade
+    sudo apt install unzip
+    4  wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-pypy3-Linux-x86_64.sh
+    5  ls
+    6  chmod +x Mambaforge-pypy3-Linux-x86_64.sh 
+    7  ./Mambaforge-pypy3-Linux-x86_64.sh 
+    8  mamba install -c bioconda bwa samtools fastp sambamba varscan==2.4.4 abra2
+   27  wget http://www.openbioinformatics.org/annovar/download/0wgxR2rIVP/annovar.latest.tar.gz
+   28  wget https://raw.githubusercontent.com/roysomak4/gdrive_download_file/master/gdrive_download.sh
+   41  chmod +x gdrive_download.sh 
+   43  sudo cp gdrive_download.sh /usr/local/bin/
+   48  gdrive_download.sh 1p7vZebLxPkvlUrHAsyrh44WyS5Q4iV2I sample_data.zip
+   50  gdrive_download.sh 1yANVV31SMqwzRNnEFiLSktxj8eQL5CSp annotation_db_and_vcfs.zip
+   55  gdrive_download.sh 1mgEkHKU7hPSRkFlPcoRVE1S-QKoHvzwf gatk_b37.tar.gz
+   57  gdrive_download.sh 1pq5zpiXsOAEklZAoNF9gB0M4Nlsacpqj gatk_b37.tar.gz.md5
+   58  md5sum gatk_b37.tar.gz
+   61  cat gatk_b37.tar.gz.md5 
+   62  tar -zxvf gatk_b37.tar.gz 
+   63  unzip sample_data.zip
+   65  unzip annotation_db_and_vcfs.zip
+   68  tar -zxvf grip_vcfs.tar.gz
+   69  tar -zxvf grip_course_annovar_db.tar.gz
+   70  

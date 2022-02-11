@@ -1,2 +1,4 @@
-# ngs_bio_workshop
-Instructions and scripts for NGS bioinformatics hands on workshop
+# NGS Bioinformatics Workshop
+This repository contains the instructions, scripts, and resources for NGS bioinformatics hands on workshop
+
+
