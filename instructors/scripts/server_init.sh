@@ -2,12 +2,14 @@
 
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y unzip pigz
+sudo apt install -y unzip pigz pv
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-pypy3-Linux-x86_64.sh
 chmod +x Mambaforge-pypy3-Linux-x86_64.sh 
-./Mambaforge-pypy3-Linux-x86_64.sh 
-mamba install -qy -c bioconda bwa samtools fastp sambamba varscan==2.4.4 abra2
+./Mambaforge-pypy3-Linux-x86_64.sh -b 
+mamba install -qy -c bioconda bwa samtools fastp fastqc sambamba varscan==2.4.4 abra2
 wget http://www.openbioinformatics.org/annovar/download/0wgxR2rIVP/annovar.latest.tar.gz
+tar -zxvf annovar.latest.tar.gz
+rm -r annovar/humandb
 wget https://raw.githubusercontent.com/roysomak4/gdrive_download_file/master/gdrive_download.sh
 chmod +x gdrive_download.sh 
 sudo mv gdrive_download.sh /usr/local/bin/
