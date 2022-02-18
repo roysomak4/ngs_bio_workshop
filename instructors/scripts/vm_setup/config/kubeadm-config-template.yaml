@@ -1,0 +1,6 @@
+apiVersion: kubeadm.k8s.io/v1beta2
+controlPlaneEndpoint: 161.35.0.200:6443 # needs to be filled with the real ip address and port name in this format
+kind: ClusterConfiguration
+kubernetesVersion: stable
+networking:
+  podSubnet: 10.244.0.0/16 # pod subnet CIDR
