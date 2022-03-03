@@ -55,4 +55,4 @@ instance/settings.py
 .vscode/
 
 # private data
-*/private*
+instructors/scripts/private/
