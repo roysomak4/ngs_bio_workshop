@@ -7,3 +7,4 @@ sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_
 systemctl restart sshd
 cp -R /root/.ssh /home/bioseq/
 chown -R bioseq:bioseq /home/bioseq/.ssh
+echo -e "%sudo ALL=(ALL:ALL) NOPASSWD:ALL" > /etc/sudoers.d/passwd_override
