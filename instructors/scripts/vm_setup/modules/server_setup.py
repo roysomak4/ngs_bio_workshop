@@ -56,7 +56,7 @@ class ServerInit(object):
                 self.logger.log_info('Adding new user bioseq and setting timezone...')
                 cmd1 = (f'ssh -t root@{self.pub_ip} "'
                        f'useradd -m -U {self.user} -s /bin/bash'
-                       f'echo bioseq123 | passwd --stdin {self.user}'
+                       f'echo -e \"bioseq123\nbioseq123\" | passwd {self.user}'
                        f'usermod -aG sudo {self.user}"')
                 sh.bash("-c", cmd1, _fg=True)
                 # update ssh config and add ssh key for newly created user
