@@ -6,20 +6,9 @@ Please refer to the instructions at https://gitlab.com/roysomak4/digitalocean_ma
 
 ## 2. Add the IP addresses of the newly created VMs to the known_hosts list
 
-The script above generates a output file with list of IP addresses of the newly created VMs. Use that list to complete this step.  
-Example of ip list
+The script above generates a output file with list of IP addresses of the newly created VMs (`vm_ips.txt`) in the `output` folder of the repo.
 
-```
-# nano vm_ips.txt
-
-192.168.10.1
-192.168.10.2
-192.168.10.3
-192.168.10.4
-192.168.10.5
-```
-
-Use the `ssh-keyscan` utility to add the ips to the known_hosts list
+Use the `ssh-keyscan` utility to add the ips to the known_hosts list. Update the path to the location of the vm_ips.txt file on your system
 
 ```
 ssh-keyscan -f vm_ips.txt >> ~/.ssh/known_hosts
@@ -27,10 +16,21 @@ ssh-keyscan -f vm_ips.txt >> ~/.ssh/known_hosts
 
 ## 3. Run the VM prep script
 
-This bash script will help initialize the VM by creating non-root user and install the necessary apps for the NGS hands on workshop. It will also mount the remote NFS server with sequencing assets, such as the human genome reference sequence, dbSNP and Cosmic VCF files, and other database files.
+This bash script will help initialize the VM by creating non-root user and install the necessary apps for the NGS hands on workshop. It will also mount the remote NFS server with sequencing assets, such as the human genome reference sequence, dbSNP and Cosmic VCF files, and other database files.  
+
+Change to the script directory inside the repo
 
 ```
-ssh-keyscan -f ~/projects/digitalocean_manage_vms/output/vm_ips.txt >>~/.ssh/known_host
-
-
+cd instructors/scripts
 ```
+
+Create a bash array of the ip addresses. Update the path to the location of the vm_ips.txt file on your system
+```
+vm_ips=(`cat vm_ips.txt`)
+```
+
+Execute the VM prep script using GNU parallel to iterate through the list of VMs in the newly created bash array
+```
+parallel -j 2 --line-buffer "./prepare_vm.sh {}" ::: "${vm_ips[@]}"
+```
+The `--line-buffer` argument to GNU parallel outputs the stdout in almost realtime on the console. It is good for development and debug purposes. However, when setting up multiple VMs simultaneously, it is better to not use that argument. All the stdout from the scripts will be printed at the end of the process. 
