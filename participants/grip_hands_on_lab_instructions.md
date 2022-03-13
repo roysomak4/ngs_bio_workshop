@@ -61,7 +61,11 @@
     ```
     less data/hd701_annotated.hg19_multianno.vcf
     ```
-16. Download BAM files for visualization
+16. Download BAM files for visualization (Windows)
     ```
-    scp bioseq@<your-ip-address>:~/data/hd701_realigned.bam .
+    scp bioseq@<your-ip-address>:~/data/hd701_realigned.ba* ./Downloads/
+    ```
+    Download BAM files for visualization (Linux / macOS)
+    ```
+    scp 'bioseq@<your-ip-address>:~/data/hd701_realigned.ba*' ~/Downloads/
     ```
