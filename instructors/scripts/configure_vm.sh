@@ -23,15 +23,15 @@ tar -zxvf annovar.latest.tar.gz
 rm -r annovar.latest.tar.gz
 rm -r annovar/humandb
 
-# Install google drive download utility
-wget https://raw.githubusercontent.com/roysomak4/gdrive_download_file/master/gdrive_download.sh
-chmod +x gdrive_download.sh 
-sudo mv gdrive_download.sh /usr/local/bin/
+# # Install google drive download utility
+# wget https://raw.githubusercontent.com/roysomak4/gdrive_download_file/master/gdrive_download.sh
+# chmod +x gdrive_download.sh 
+# sudo mv gdrive_download.sh /usr/local/bin/
 
 # prepare sample data folder
 mkdir data
-gdrive_download.sh 1p7vZebLxPkvlUrHAsyrh44WyS5Q4iV2I sample_data.zip
-mv Downloads/sample_data.zip data/
+# gdrive_download.sh 1p7vZebLxPkvlUrHAsyrh44WyS5Q4iV2I sample_data.zip
+cp assets/sample_data.zip data/
 unzip data/sample_data.zip -d data/
 mv data/grip_course_hd701_R1.fq.gz data/hd701_R1.fq.gz
 mv data/grip_course_hd701_R2.fq.gz data/hd701_R2.fq.gz
