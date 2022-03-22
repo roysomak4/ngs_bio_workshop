@@ -12,7 +12,7 @@
    ```
    fastqc -o data -f fastq data/*.gz
    ```
-4. :checkered_flag: 
+4. :star2: 
    Download FASTQ quality control data from server (Windows)
    ```
    scp 'bioseq@<your-ip-address>:~/data/*.html' ./Downloads/
@@ -67,7 +67,7 @@
     ```
     less data/hd701_annotated.hg19_multianno.vcf
     ```
-16. :checkered_flag: 
+16. :star2: 
     Download BAM files for visualization (Windows)
     ```
     scp bioseq@<your-ip-address>:~/data/hd701_realigned.ba* ./Downloads/
