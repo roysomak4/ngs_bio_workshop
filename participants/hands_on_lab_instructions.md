@@ -12,10 +12,15 @@
    ```
    fastqc -o data -f fastq data/*.gz
    ```
-4. Download FASTQ quality control data from server
+4. Download FASTQ quality control data from server (Windows)
    ```
-   scp 'bioseq@<your-ip-address>:~/data/*.html' .
+   scp 'bioseq@<your-ip-address>:~/data/*.html' ./Downloads/
    ```
+   Download FASTQ quality control data from server (Linux / macOS)
+   ```
+   scp 'bioseq@<your-ip-address>:~/data/*.html' ~/Downloads/
+   ```
+
 5. Align sequence to GRCh37
    ```
    bwa mem -M -v 1 -t 2 -R "@RG\\tID:hd701\\tSM:hd701\\tPL:ILLUMINA_NEXTSEQ\\tPI:150\\tCN:roy_lab" assets/gatk_b37/human_g1k_v37.fasta data/hd701_R1_processed.fq.gz data/hd701_R2_processed.fq.gz >data/hd701_raw.sam
