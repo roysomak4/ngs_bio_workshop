@@ -6,7 +6,7 @@ sudo apt install -y unzip nfs-common tree
 
 # mount nfs assets share on vm
 mkdir assets
-sudo bash -c 'echo -e "159.203.87.19:/exports/assets\t/home/bioseq/assets\tnfs\trw,soft,intr,noacl,noatime,timeo=900,retrans=3,proto=tcp,vers=4\t0\t0" >> /etc/fstab'
+sudo bash -c 'echo -e "157.245.136.51:/exports/assets\t/home/bioseq/assets\tnfs\trw,soft,intr,noacl,noatime,timeo=900,retrans=3,proto=tcp,vers=4\t0\t0" >> /etc/fstab'
 sudo mount -a -v
 sudo chown -R bioseq assets
 
