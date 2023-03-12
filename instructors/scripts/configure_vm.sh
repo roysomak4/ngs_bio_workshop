@@ -30,7 +30,6 @@ rm -r annovar/humandb
 
 # prepare sample data folder
 mkdir data
-# gdrive_download.sh 1p7vZebLxPkvlUrHAsyrh44WyS5Q4iV2I sample_data.zip
 cp assets/sample_data.zip data/
 unzip data/sample_data.zip -d data/
 mv data/grip_course_hd701_R1.fq.gz data/hd701_R1.fq.gz
