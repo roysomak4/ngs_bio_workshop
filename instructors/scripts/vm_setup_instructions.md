@@ -4,6 +4,15 @@
 
 Please refer to the instructions at https://gitlab.com/roysomak4/digitalocean_manage_vms
 
+After cloning the repository, run the following command to create the VMs
+```
+python3 create_vm.py hosts/<list of vm names>.txt --image ubuntu-22-04-x64 --worker-size s-4vcpu-8gb-intel --region nyc3 --tag-names ngs --ssh-keys <ssh-key-id-from-digitalocean,ssh-key-id-from-digitalocean>
+``` 
+How to get the SSH key IDs
+```
+doctl compute ssh-key ls
+```
+
 ## 2. Add the IP addresses of the newly created VMs to the known_hosts list
 
 The script above generates a output file with list of IP addresses of the newly created VMs (`vm_ips.txt`) in the `output` folder of the repo.
