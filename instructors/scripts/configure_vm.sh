@@ -1,12 +1,8 @@
 #!/bin/bash
-# update repos and install dependencies
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y unzip nfs-common tree
 
 # mount nfs assets share on vm
 mkdir assets
-sudo bash -c 'echo -e "157.245.136.51:/exports/assets\t/home/bioseq/assets\tnfs\trw,soft,intr,noacl,noatime,timeo=900,retrans=3,proto=tcp,vers=4\t0\t0" >> /etc/fstab'
+sudo bash -c 'echo -e "143.198.11.33:/exports/assets\t/home/bioseq/assets\tnfs\trw,soft,intr,noacl,noatime\t0\t0" >> /etc/fstab'
 sudo mount -a -v
 sudo chown -R bioseq assets
 
@@ -23,11 +19,6 @@ tar -zxvf annovar.latest.tar.gz
 rm -r annovar.latest.tar.gz
 rm -r annovar/humandb
 
-# # Install google drive download utility
-# wget https://raw.githubusercontent.com/roysomak4/gdrive_download_file/master/gdrive_download.sh
-# chmod +x gdrive_download.sh 
-# sudo mv gdrive_download.sh /usr/local/bin/
-
 # prepare sample data folder
 mkdir data
 cp assets/sample_data.zip data/
@@ -37,7 +28,7 @@ mv data/grip_course_hd701_R2.fq.gz data/hd701_R2.fq.gz
 
 # clean up
 rm data/sample_data.zip data/grip_course.bed
-rm -r Downloads
+rm configure_vm.sh
 
 # update environment
 mambaforge/bin/mamba init -q

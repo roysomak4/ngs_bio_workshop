@@ -1,5 +1,10 @@
 #! /bin/bash
 
+# update repos and install dependencies
+apt update
+# apt upgrade -y
+apt install -y unzip nfs-common tree
+# create user
 useradd -m -U bioseq -s /bin/bash
 echo -e "bioseq123\nbioseq123" | passwd bioseq
 usermod -aG sudo bioseq
