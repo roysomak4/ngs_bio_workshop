@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NGS Workshop Deployment Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width tables/diagrams; pipeline strip uses IGV nucleotide colours as stage markers */
+:root{
+  --bg:#f7f8f6; --surface:#ffffff; --fg:#1b2420; --muted:#5b6862; --line:#dde3df; --code-bg:#eef2ef;
+  --accent:#1f6f5c; --accent-soft:#e1efe9;
+  --nt-a:#1a8f3c; --nt-c:#2457c5; --nt-g:#c27a00; --nt-t:#c8322b;
+  --crit:#b3261e; --crit-bg:#fbe7e5; --high:#a35a00; --high-bg:#fdf0dc; --med:#6b5a00; --med-bg:#f6f1d2; --low:#3d5a80; --low-bg:#e5ecf6;
+  --f-display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body:"Public Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121715; --surface:#19201d; --fg:#e3ebe7; --muted:#9aa8a1; --line:#2b3531; --code-bg:#1f2824;
+  --accent:#5fc3a6; --accent-soft:#1d3a32;
+  --nt-a:#4cc56c; --nt-c:#6d97ff; --nt-g:#f0a830; --nt-t:#ff6b62;
+  --crit:#ff8a80; --crit-bg:#3b1b19; --high:#ffb75e; --high-bg:#3a2a12; --med:#e6d36a; --med-bg:#33301a; --low:#9cbcf0; --low-bg:#1c2738;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#19201d; --fg:#e3ebe7; --muted:#9aa8a1; --line:#2b3531; --code-bg:#1f2824;
+  --accent:#5fc3a6; --accent-soft:#1d3a32;
+  --nt-a:#4cc56c; --nt-c:#6d97ff; --nt-g:#f0a830; --nt-t:#ff6b62;
+  --crit:#ff8a80; --crit-bg:#3b1b19; --high:#ffb75e; --high-bg:#3a2a12; --med:#e6d36a; --med-bg:#33301a; --low:#9cbcf0; --low-bg:#1c2738;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 80px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+.prose{max-width:72ch}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.75rem;font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h3{font-size:1.2rem;font-weight:500;margin-top:8px}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+p{margin:0}
+ul,ol{margin:0;padding-left:1.25em;display:flex;flex-direction:column;gap:6px}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.eyebrow{font:600 .75rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.meta{color:var(--muted);font-size:.9rem;display:flex;flex-wrap:wrap;gap:6px 18px}
+.lede{font-size:1.15rem;max-width:68ch}
+code,pre,.mono{font-family:var(--f-mono);font-size:.85em}
+:not(pre)>code{background:var(--code-bg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;margin:0;line-height:1.5}
+.muted{color:var(--muted)}
+/* pipeline strip */
+.strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.stage{background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.stage b{font-family:var(--f-mono);font-size:.9rem}
+.stage span{font-size:.82rem;color:var(--muted)}
+@media (max-width:720px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* key findings */
+.keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.key{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.key p{font-size:.93rem}
+.chip{display:inline-block;font:600 .7rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;padding:5px 8px;border-radius:999px;white-space:nowrap;align-self:flex-start}
+.crit{color:var(--crit);background:var(--crit-bg)} .oos{color:var(--muted);background:var(--code-bg)} .high{color:var(--high);background:var(--high-bg)}
+.med{color:var(--med);background:var(--med-bg)} .low{color:var(--low);background:var(--low-bg)}
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font:600 .72rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--code-bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:nowrap}
+.miss td{background:var(--high-bg)}
+.loc{font-family:var(--f-mono);font-size:.8rem;white-space:nowrap}
+/* two-column for instructor/participant */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}
+.cols>div{display:flex;flex-direction:column;gap:12px;min-width:0}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;overflow-x:auto}
+.diagram pre.mermaid{background:none;border:0;padding:0}
+.phase{display:grid;grid-template-columns:140px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.phase:last-child{border-bottom:0}
+.phase h3{margin:0;font-size:1.05rem}
+.phase .when{font:600 .75rem/1.4 var(--f-mono);color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+@media (max-width:600px){.phase{grid-template-columns:1fr;gap:6px}}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:14px">
+  <div class="eyebrow">Repository review · ngs_bio_workshop · branch 2026-upgrade</div>
+  <h1>NGS Workshop Deployment Review</h1>
+  <div class="meta"><span>2 November 2026</span><span>Commit 926907d</span><span>7 scripts &amp; docs, 13 data files reviewed</span><span>dovm (do-vm-manager) reviewed</span></div>
+  <p class="lede">The repo provisions one DigitalOcean VM per participant and walks them through a 16-step CLI pipeline. It works, but setup is slow, fragile to re-run, depends on a shared NFS server, and is now out of sync with the new hg38 OncoSpan dataset. The dovm droplet manager plus a single pre-built snapshot solves most of the setup side. Below: what exists, what breaks, and a plan that gets every participant from FASTQ to a signed-out clinical report.</p>
+  <div class="strip" aria-label="Data journey taught in the workshop">
+    <div class="stage" style="--c:var(--nt-a)"><b>FASTQ</b><span>34,890 read pairs, ~143 bp, 16 target exons</span></div>
+    <div class="stage" style="--c:var(--nt-c)"><b>BAM</b><span>bwa mem → sort → markdup → ABRA2</span></div>
+    <div class="stage" style="--c:var(--nt-g)"><b>VCF</b><span>mpileup | VarScan2 mpileup2vcf</span></div>
+    <div class="stage" style="--c:var(--nt-t)"><b>Annotated VCF</b><span>ANNOVAR today; VEP proposed</span></div>
+    <div class="stage" style="--c:var(--accent)"><b>Clinical report</b><span>Not yet built (proposed)</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>What needs attention first</h2>
+  <div class="keys">
+    <div class="key"><span class="chip high">Licence</span><h3>Licensed ANNOVAR link is public</h3><p><code>configure_vm.sh:17</code> contains a personal ANNOVAR download token, and ANNOVAR's licence forbids redistribution. Ask for a new link and keep it out of git. Switching to VEP removes the problem.</p></div>
+        <div class="key"><span class="chip high">High</span><h3>Genome build mismatch</h3><p>The new FASTQ/BAM/BED/truth VCF are hg38 (<code>chr</code>-prefixed, bwa-mem2 hg38). The participant guide still aligns to <code>human_g1k_v37</code> and annotates with <code>hg19</code>.</p></div>
+    <div class="key"><span class="chip high">High</span><h3>Retire the NFS server</h3><p>Every VM reads a ~5 GB bwa index from one NFS server at the same moment in step 5. Baking assets into a snapshot removes the server and the bottleneck.</p></div>
+    <div class="key"><span class="chip med">Medium</span><h3>Setup is slow and fragile</h3><p>Two VMs at a time over interactive SSH, no error checking, unpinned tools, and a retired Mambaforge installer. dovm and a snapshot replace all of it.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>How deployment works today</h2>
+  <p class="prose">Provisioning runs from the instructor's laptop in four manual stages. VM creation depends on a separate GitLab repo (<code>digitalocean_manage_vms</code>). Configuration then pushes two scripts over SSH to each VM, two at a time.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A[create_vm.py<br/>external GitLab repo] --> B[vm_ips.txt]
+  B --> C[ssh-keyscan<br/>known_hosts]
+  C --> D[parallel -j 2<br/>prepare_vm.sh IP]
+  D --> E[scp + ssh root<br/>create_user.sh]
+  E --> F[scp + ssh bioseq<br/>configure_vm.sh]
+  F --> G[(NFS 143.198.11.33<br/>/exports/assets)]
+  F --> H[Mambaforge + bioconda<br/>ANNOVAR tarball]
+  F --> I[unzip sample_data.zip<br/>reboot]
+</pre>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>File</th><th>Role</th><th>Observation</th></tr></thead>
+    <tbody>
+      <tr><td class="loc">vm_setup_instructions.md</td><td>Runbook</td><td>Clear, but every step is copy-paste. No teardown, no health check, no participant roster.</td></tr>
+      <tr><td class="loc">prepare_vm.sh</td><td>Orchestrator</td><td>Uses <code>ssh -t</code> (interactive TTY), so <code>parallel</code> runs only 2 at a time. No per-VM log, no exit-code check.</td></tr>
+      <tr><td class="loc">create_user.sh</td><td>Root bootstrap</td><td>No <code>set -e</code>. Edits <code>sshd_config</code> with <code>sed</code>, which Ubuntu cloud images override via <code>sshd_config.d/50-cloud-init.conf</code> (likely the cause of fix d6f050b).</td></tr>
+      <tr><td class="loc">configure_vm.sh</td><td>User bootstrap</td><td>Not idempotent: rerunning appends a second <code>fstab</code> line. Installs <code>Mambaforge</code>, which is retired upstream (Miniforge3 replaces it). Only VarScan is version-pinned. Reboots even if a step failed.</td></tr>
+      <tr><td class="loc">grip_hands_on_lab_instructions.md</td><td>Participant guide</td><td>Good progression. Hard-codes <code>hd701</code> sample, b37 reference, <code>assets/ngs_workshop.bed</code> and 2015 ClinVar. No checkpoints or expected outputs.</td></tr>
+      <tr><td class="loc">data/ngs_data/</td><td>Workshop dataset</td><td>~35 MB of BAM/FASTQ committed directly to git, including <code>prep_temp_files/</code> intermediates. The subsetting steps (BED filter → name sort → fixmate → FASTQ) are not scripted.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Full findings</h2>
+  <p class="prose muted">Scope: the VMs are short-lived, hold no PHI or sensitive data, and use one simple shared login on purpose. Security hardening that needs extra workflow is out of scope and marked that way below.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Severity</th><th>Where</th><th>Issue</th><th>Suggested fix</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip high">Licence</span></td><td class="loc">configure_vm.sh:17</td><td>ANNOVAR personal download URL in a public repo.</td><td>Ask the ANNOVAR team for a new link and pass it to the image build as an environment variable. Or switch to VEP/snpEff, which are freely redistributable.</td></tr>
+      <tr><td><span class="chip oos">Out of scope</span></td><td class="loc">create_user.sh:9-16</td><td>Same simple password on every VM, password SSH, passwordless sudo.</td><td>Accepted for short-lived teaching VMs. dovm's <code>--login-user</code> keeps the shared password and also keeps root key-only, at no extra effort.</td></tr>
+      <tr><td><span class="chip high">High</span></td><td class="loc">configure_vm.sh:5</td><td>NFS export is read-write, over a public IP, mounted with <code>soft,intr</code>.</td><td>Remove NFS. Bake the reference, indexes, annotation cache and data into the snapshot (see the dovm section).</td></tr>
+      <tr><td><span class="chip high">High</span></td><td class="loc">participant guide, steps 5-14</td><td>Data is hg38; commands use b37/hg19. Sample names, BED path and ANNOVAR DBs are stale.</td><td>Move to an hg38 reference (no-alt analysis set), hg38 annotation sources, and the new <code>ngs_workshop_300bp_pad_no_FLT3.bed</code>. Update <code>bioinformatics_software_list.md</code>.</td></tr>
+      <tr><td><span class="chip high">High</span></td><td class="loc">configure_vm.sh:10-14</td><td>Unpinned installs from <code>latest</code>. Builds differ between workshops and can break the morning of class.</td><td>Commit an <code>environment.yml</code> plus lock file (conda-lock or pixi). Install from the lock.</td></tr>
+      <tr><td><span class="chip med">Medium</span></td><td class="loc">all scripts</td><td>No <code>set -euo pipefail</code>, no logging, no verification. A failed install still reboots and looks done.</td><td>Strict mode in the image build script, and a <code>check-all</code> smoke test run on every VM through dovm's Ansible inventory.</td></tr>
+      <tr><td><span class="chip med">Medium</span></td><td class="loc">vm_setup_instructions.md:43</td><td>Serial-ish setup (<code>-j 2</code>, interactive SSH). Each VM downloads conda packages independently.</td><td>Build one snapshot, then create all droplets from it with dovm. Setup time drops from hours to the droplet boot time.</td></tr>
+      <tr><td><span class="chip med">Medium</span></td><td class="loc">data/ngs_data/</td><td>Large binaries in git; dataset preparation is undocumented.</td><td>Add <code>make_workshop_data.sh</code> that rebuilds FASTQ from the source BAM. Move binaries to Git LFS or a release asset.</td></tr>
+      <tr><td><span class="chip low">Low</span></td><td class="loc">vm_setup_instructions.md:5</td><td>VM creation depends on an external GitLab repo.</td><td>Replaced by dovm. Keep the course specs in <code>infra/dovm/</code> in this repo.</td></tr>
+      <tr><td><span class="chip low">Low</span></td><td class="loc">README.md</td><td>One line. No overview of the course, data, or how the parts fit.</td><td>Add course outline, data provenance (OncoSpan reference standard), and a quick start for each audience.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>For instructors: provisioning with dovm</h2>
+  <p class="prose"><a href="https://github.com/roysomak4/do-vm-manager">dovm</a> (do-vm-manager) already does most of what this course needs. It creates droplets from a YAML spec in batches of 10, can be re-run safely, tags everything it owns, and writes IP lists and an Ansible inventory. Combined with one pre-built snapshot, it replaces <code>create_vm.py</code>, <code>create_user.sh</code>, <code>prepare_vm.sh</code>, the <code>ssh-keyscan</code> step and the NFS server.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph Build once, a week before class
+    P[dovm create prep.yaml<br/>one prep-vm] --> B[build_image.sh<br/>Miniforge env, hg38 ref,<br/>bwa index, VEP cache, dataset]
+    B --> S[(Snapshot<br/>ngs-2026-v1)]
+    S --> X[dovm destroy prep.yaml]
+  end
+  subgraph Each workshop
+    S --> U[dovm create course.yaml<br/>--login-user bioseq<br/>40 students + 2 spares]
+    U --> K[ansible smoke test<br/>via output/inventory.ini]
+    K --> D[dovm destroy course.yaml]
+  end
+</pre>
+  </div>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Today</th><th>With dovm + snapshot</th></tr></thead>
+    <tbody>
+      <tr><td><code>create_vm.py</code> from an external GitLab repo</td><td><code>dovm create course.yaml</code>. 40 VMs go out in 4 batches of 10 and are usually ready in 1–2 minutes.</td></tr>
+      <tr><td>Re-running after a partial failure</td><td>Safe. dovm creates only the missing hosts. <code>--rollback-on-failure</code> deletes what a failed run made.</td></tr>
+      <tr><td><code>create_user.sh</code> run as root over SSH</td><td><code>--login-user bioseq</code>. cloud-init creates the user with the same simple password on every VM. Root stays SSH-key only. The <code>sshd</code> setting goes in a drop-in that loads first, which fixes the problem behind commit d6f050b.</td></tr>
+      <tr><td><code>configure_vm.sh</code> on every VM (conda, ANNOVAR, unzip, reboot)</td><td>Runs once, on the prep VM, during image build. Student VMs boot ready.</td></tr>
+      <tr><td><code>ssh-keyscan</code> + <code>parallel -j 2 prepare_vm.sh</code></td><td>Not needed. For any post-boot step, <code>output/inventory.ini</code> drives Ansible across all 40 VMs at once.</td></tr>
+      <tr><td>NFS server at 143.198.11.33</td><td>Retired. Reference, indexes, annotation cache and data are on every VM's own disk.</td></tr>
+      <tr><td>No teardown or overview</td><td><code>dovm status</code>, <code>dovm list</code>, <code>dovm destroy</code>. Destroy only touches droplets tagged <code>dovm:&lt;name&gt;</code>.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="cols">
+    <div>
+      <h3>Course run book</h3>
+<pre># 1. Build the image (once per course year)
+dovm create infra/dovm/prep.yaml
+ansible-playbook -i output/inventory.ini \
+  infra/image/build_image.yml
+doctl compute droplet-action power-off &lt;id&gt; --wait
+doctl compute droplet-action snapshot &lt;id&gt; \
+  --snapshot-name ngs-2026-v1 --wait
+dovm destroy infra/dovm/prep.yaml
+
+# 2. Class day (or the evening before)
+dovm validate infra/dovm/course.yaml   # cost estimate
+dovm create infra/dovm/course.yaml --dry-run
+dovm create infra/dovm/course.yaml \
+  --login-user bioseq --login-password-file pw.txt
+ansible all -i output/inventory.ini -f 42 \
+  -m shell -a /opt/ngs/bin/check-all
+
+# 3. A VM breaks mid-session
+#    hand the participant a spare from vms_ip_host.txt
+
+# 4. After class
+dovm destroy infra/dovm/course.yaml</pre>
+    </div>
+    <div>
+      <h3>course.yaml</h3>
+<pre>name: ngs-course-2026
+region: nyc3               # same region as the snapshot
+image: 123456789           # snapshot ID
+ssh_keys: ["51842390"]
+monitoring: true
+project: AMP 2026 NGS bioinformatics bootcamp
+roles:
+  student:
+    size: s-4vcpu-8gb-240gb-intel
+    hosts: [student01, student02, ..., student40]
+  spare:
+    size: s-4vcpu-8gb-240gb-intel
+    hosts: [spare01, spare02]</pre>
+      <p class="muted" style="font-size:.88rem">The <code>dovm init</code> wizard expands <code>student*40</code> into the full host list. The size and project match <code>hosts/test.yaml</code> in the dovm repo.</p>
+    </div>
+  </div>
+
+  <h3>Snapshot size: what DigitalOcean's docs say</h3>
+  <div class="note prose">
+    <p>DigitalOcean does not document a maximum size for Droplet snapshots, and no limit on how many droplets can be created from one. The size limits you may have run into last time are these:</p>
+    <ul style="margin-top:8px">
+      <li><b>Disk must be at least the source disk.</b> "You must select a disk size equal to or larger than the Droplet used to create the snapshot." A snapshot taken from a 240 GB droplet cannot create a 160 GB one, and you cannot shrink it afterwards.</li>
+      <li><b>100 GB applies to custom images, not snapshots.</b> Uploaded images "must be less than 100 GB uncompressed." Snapshots taken from a droplet are not uploaded images, so this cap does not apply to them.</li>
+      <li><b>Datacenter capacity.</b> A snapshot stored in a limited-capacity datacenter cannot create droplets there. The fix is to transfer the snapshot to another region.</li>
+    </ul>
+    <p style="margin-top:8px">Snapshots cost $0.06 per GB per month. A course-year image of roughly 30–40 GB costs about $2–3 a month to keep.</p>
+  </div>
+  <p class="prose"><b>Rules that avoid the disk-size trap:</b> build the prep VM on the smallest disk that holds the assets, and use the same or a larger disk for the student VMs. Never resize the prep VM's disk upward, because that permanently raises the snapshot's minimum disk size. Check before class with <code>doctl compute snapshot get &lt;id&gt; --format Name,MinDiskSize,Regions</code>.</p>
+
+  <h3>What goes in the image</h3>
+  <p class="prose">Do not create the <code>bioseq</code> user in the snapshot. dovm's cloud-init creates it at first boot, and <code>useradd</code> copies <code>/etc/skel</code> into the new home directory. So the image keeps shared files in system locations:</p>
+<pre>/opt/miniforge/                  pinned ngs-workshop environment
+/etc/profile.d/ngs.sh            activates it at login, sets REF, BED, VEP_CACHE
+/opt/assets/hg38/                FASTA, .fai, .dict, bwa index
+/opt/assets/vep/                 VEP cache (or ANNOVAR humandb)
+/opt/ngs/bin/                    check-step, catch-up, check-all, make_report.py
+/etc/skel/data/                  oncospan_workshop_R1/R2.fastq.gz, target BED
+/etc/skel/workshop.env           SAMPLE=oncospan, THREADS=4</pre>
+  <p class="prose">The <code>--login-user</code> account has no sudo. The participant guide never needs it, because everything is installed in the image.</p>
+
+  <h3>Pinned environment</h3>
+<pre>name: ngs-workshop
+channels: [conda-forge, bioconda]
+dependencies:
+  - bwa=0.7.18        # bwa-mem2 index needs more RAM than an 8 GB VM has
+  - samtools=1.21
+  - bcftools=1.21
+  - htslib=1.21       # bgzip, tabix
+  - fastp=0.24
+  - fastqc=0.12
+  - sambamba=1.0
+  - abra2=2.23
+  - varscan=2.4.4
+  - mosdepth          # coverage QC for the report
+  - multiqc
+  - ensembl-vep       # pin the cache release to match
+  - python=3.12
+  - jinja2</pre>
+  <p class="muted" style="font-size:.88rem">Exact versions are a starting point. Resolve once, commit the lock file, and use only the lock afterwards.</p>
+
+  <h3>Small dovm additions worth making</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Feature</th><th>Why it helps this course</th></tr></thead>
+    <tbody>
+      <tr><td><code>dovm snapshot &lt;host&gt;</code></td><td>Power off, snapshot and wait in one step. The whole image lifecycle then lives in dovm, with no separate <code>doctl</code> calls.</td></tr>
+      <tr><td>Wait until login works</td><td>A droplet shows <i>active</i> about a minute before cloud-init has created the login user. A <code>--wait-ssh</code> option on <code>create</code> or <code>status</code> would tell you when class can start.</td></tr>
+      <tr><td>Roster output</td><td>Write <code>output/roster.csv</code> (participant slot, hostname, IP, login user) to print handouts or project at the start of class.</td></tr>
+      <tr><td><code>--user-data file.yaml</code></td><td>Merge extra cloud-init with the login user, for example to start code-server or igv.js. This is optional and only needed if you add browser access.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>For participants: see every transformation</h2>
+  <p class="prose">The current guide is a good list of commands. The goal is for participants to understand what each command does to the data. Three changes would help most: remove access friction, show each file after every step, and end with a real report built from their own calls.</p>
+  <div class="cols">
+    <div>
+      <h3>Remove access friction</h3>
+      <ul>
+        <li>Serve <b>code-server</b> or <b>JupyterLab</b> over HTTPS (Caddy + a per-VM hostname). Participants get a terminal, a file browser, and an HTML viewer in one browser tab. That removes the separate Windows/macOS <code>scp</code> steps (4 and 16).</li>
+        <li>Host <b>igv.js</b> on the VM, preloaded with hg38 and the participant's BAM, so they can inspect KRAS G12D reads without downloading anything.</li>
+        <li>Keep SSH as an option for people who want the real terminal experience.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Make the pipeline teachable</h3>
+      <ul>
+        <li>Start with <code>source ~/workshop.env</code> that sets <code>SAMPLE</code>, <code>REF</code>, <code>BED</code>, <code>THREADS</code>. Commands become shorter and typo-resistant.</li>
+        <li>After every step, a <code>check-step N</code> command confirms the expected output exists and looks right, with a plain explanation of any failure.</li>
+        <li>A <code>catch-up N</code> command copies precomputed outputs, so nobody gets stuck behind a typo.</li>
+        <li>Finish by running the whole pipeline again as a single Snakemake or <code>make</code> call to show what automation buys you.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Peek commands for each stage</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Stage</th><th>What changes</th><th>Peek command</th></tr></thead>
+    <tbody>
+      <tr><td><b class="mono">FASTQ</b></td><td>Raw reads with per-base quality</td><td><code>zcat $R1 | head -4</code> then decode one quality character with <code>printf '%d' "'I"</code> minus 33</td></tr>
+      <tr><td><b class="mono">fastp</b></td><td>Adapters and low-quality tails trimmed</td><td><code>jq .summary $SAMPLE.fastp.json</code> to compare reads and Q30 before and after</td></tr>
+      <tr><td><b class="mono">SAM</b></td><td>Each read gets a position, CIGAR and MAPQ</td><td><code>grep -v '^@' $SAMPLE.sam | head -2 | cut -f1-9</code></td></tr>
+      <tr><td><b class="mono">sorted BAM</b></td><td>Binary, ordered by position, indexed</td><td><code>ls -lh *.sam *.bam</code> to compare sizes; <code>samtools view $BAM chr12:25245350 | wc -l</code></td></tr>
+      <tr><td><b class="mono">markdup</b></td><td>PCR duplicates flagged with 0x400</td><td><code>samtools flagstat</code> before vs after</td></tr>
+      <tr><td><b class="mono">ABRA2</b></td><td>Reads near indels re-aligned</td><td>Open FBXW7 <code>chr4:152323003</code> in igv.js before and after</td></tr>
+      <tr><td><b class="mono">coverage</b></td><td>Depth per target exon</td><td><code>mosdepth -b $BED</code>, then sort the regions by depth</td></tr>
+      <tr><td><b class="mono">pileup</b></td><td>Per-base allele counts</td><td><code>samtools mpileup -r chr7:140753336-140753336 -f $REF $BAM</code></td></tr>
+      <tr><td><b class="mono">VCF</b></td><td>Positions where evidence passes thresholds</td><td><code>bcftools query -f '%CHROM:%POS %REF&gt;%ALT [%FREQ]\n'</code></td></tr>
+      <tr><td><b class="mono">annotated VCF</b></td><td>Gene, HGVS, consequence, ClinVar</td><td><code>bcftools +split-vep -f '%SYMBOL %HGVSp %Consequence\n'</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Use the truth set as an exercise</h3>
+  <p class="prose">I intersected <code>oncospan_sorted.vcf</code> with <code>ngs_workshop_300bp_pad.bed</code>. 17 known variants fall in the targets, with allele fractions from 3% to 47%. With the guide's <code>--min-var-freq 0.05</code>, the two shaded rows should be missed, and BRAF V600E at 6% sits right at the edge. That is a good lesson in limit of detection. Participants can measure it themselves with <code>bcftools isec</code>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Gene / exon</th><th>hg38 position</th><th>Change</th><th>Expected VAF</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>CTNNB1 ex3</td><td class="num">chr3:41224610</td><td class="num">C&gt;A</td><td class="num">25%</td><td></td></tr>
+      <tr><td>CTNNB1 ex3</td><td class="num">chr3:41224642</td><td class="num">CCTT&gt;C</td><td class="num">8%</td><td>In-frame deletion</td></tr>
+      <tr><td>PIK3CA ex10</td><td class="num">chr3:179218303</td><td class="num">G&gt;A</td><td class="num">12%</td><td>E545K hotspot</td></tr>
+      <tr><td>PIK3CA ex21</td><td class="num">chr3:179234297</td><td class="num">A&gt;G</td><td class="num">20%</td><td>H1047R hotspot</td></tr>
+      <tr><td>FBXW7 ex14</td><td class="num">chr4:152323003</td><td class="num">TC&gt;T</td><td class="num">31%</td><td>Frameshift, ABRA2 demo</td></tr>
+      <tr><td>EGFR ex20</td><td class="num">chr7:55181370</td><td class="num">G&gt;A</td><td class="num">19%</td><td></td></tr>
+      <tr class="miss"><td>EGFR ex21</td><td class="num">chr7:55191822</td><td class="num">T&gt;G</td><td class="num">3%</td><td>L858R, below 5% cutoff</td></tr>
+      <tr><td>BRAF ex15</td><td class="num">chr7:140753336</td><td class="num">A&gt;T</td><td class="num">6%</td><td>V600E, near cutoff</td></tr>
+      <tr><td>KRAS ex2</td><td class="num">chr12:25245347</td><td class="num">C&gt;T</td><td class="num">13%</td><td>G13D, three bases from G12D</td></tr>
+      <tr class="miss"><td>KRAS ex2</td><td class="num">chr12:25245350</td><td class="num">C&gt;T</td><td class="num">4%</td><td>G12D, below 5% cutoff</td></tr>
+      <tr><td>BRCA2 ex11</td><td class="num">chr13:32337751</td><td class="num">A&gt;G</td><td class="num">39%</td><td>Likely germline-range VAF</td></tr>
+      <tr><td>BRCA2 ex11</td><td class="num">chr13:32338162</td><td class="num">T&gt;C</td><td class="num">25%</td><td></td></tr>
+      <tr><td>BRCA2 ex11</td><td class="num">chr13:32338613</td><td class="num">G&gt;T</td><td class="num">41%</td><td></td></tr>
+      <tr><td>BRCA2 ex11</td><td class="num">chr13:32339421</td><td class="num">CA&gt;C</td><td class="num">35%</td><td>Frameshift</td></tr>
+      <tr><td>BRCA2 ex11</td><td class="num">chr13:32339699</td><td class="num">CA&gt;C</td><td class="num">47%</td><td>Frameshift</td></tr>
+      <tr><td>MAP2K1 ex2</td><td class="num">chr15:66435113</td><td class="num">A&gt;C</td><td class="num">27%</td><td></td></tr>
+      <tr><td>MAP2K1 ex3</td><td class="num">chr15:66436809</td><td class="num">C&gt;T</td><td class="num">31%</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted" style="font-size:.88rem">Expected VAFs come from the <code>HIAF</code> field in the truth VCF. Protein labels are standard hg38 hotspot coordinates; confirm them against <code>prep_temp_files/fastvep_results.xlsx</code> before teaching. FLT3 is excluded from the participant BED, so the report should list it as a limitation.</p>
+
+  <h3>Close with a clinical report</h3>
+  <p class="prose">Add a <code>make_report.py</code> (Jinja2 → HTML, optional PDF) that reads the participant's own outputs and builds a molecular pathology–style report. Have participants assign tiers to three or four variants before running it, then compare their calls with the generated report.</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Header:</b> synthetic patient and specimen IDs, assay name, genome build, pipeline versions from the lock file</li>
+        <li><b>QC:</b> reads, % Q30 (fastp JSON), duplicate rate, mean and minimum target depth (mosdepth), % targets ≥ 250×</li>
+        <li><b>Results:</b> variants grouped by AMP/ASCO/CAP tier with gene, HGVSc, HGVSp, VAF, depth, ClinVar</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Methods:</b> generated from the actual commands run (<code>@PG</code> lines in the BAM header provide this)</li>
+        <li><b>Limitations:</b> 5% VAF cutoff, regions not covered (FLT3), no CNV or fusion detection</li>
+        <li><b>Truth comparison</b> (teaching appendix): sensitivity and PPV against OncoSpan</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note prose"><b>Annotation choice.</b> The prep folder already holds VEP output with MANE and ACMG fields, so Ensembl VEP with an offline hg38 cache plus a recent ClinVar VCF fits best. It is free to redistribute, which also removes the ANNOVAR licence problem. snpEff is a lighter alternative if image size matters more than MANE transcript selection.</div>
+</section>
+
+<section>
+  <h2>Roadmap</h2>
+  <div>
+    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Get the content right</h3><ul><li>Replace the ANNOVAR link and remove it from git history (<code>git filter-repo</code>), or switch to VEP</li><li>Rewrite the participant guide for hg38 and the OncoSpan sample</li><li>Replace Mambaforge with Miniforge3 and pin versions in a lock file</li></ul></div></div>
+    <div class="phase"><div><div class="when">Phase 2</div></div><div><h3>Provision with dovm</h3><ul><li><code>build_image.yml</code> for the prep VM, then one snapshot with all assets</li><li>Retire the NFS server</li><li><code>course.yaml</code> with 40 students and 2 spares, plus a <code>check-all</code> smoke test</li><li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output</li><li>Script dataset preparation; move binaries out of git</li></ul></div></div>
+    <div class="phase"><div><div class="when">Phase 3</div></div><div><h3>Improve the participant experience</h3><ul><li>Browser IDE and igv.js on each VM</li><li><code>workshop.env</code>, <code>check-step</code>, <code>catch-up</code></li><li>VEP annotation, report generator, truth-set exercise</li><li>Closing demo: the same pipeline as one Snakemake run</li></ul></div></div>
+  </div>
+  <h3>Proposed repo layout</h3>
+<pre>ngs_bio_workshop/
+├── README.md                     course overview, quick start per audience
+├── env/environment.yml, conda-lock.yml
+├── infra/
+│   ├── dovm/prep.yaml            one prep VM for the image build
+│   ├── dovm/course.yaml          students + spares, image = snapshot ID
+│   └── image/build_image.yml     Ansible: env, hg38 assets, /etc/skel
+├── data/
+│   ├── make_workshop_data.sh     source BAM → subset FASTQ (reproducible)
+│   ├── targets_hg38.bed
+│   └── truth/oncospan_hg38.vcf.gz
+├── pipeline/
+│   ├── workshop.env
+│   ├── check-step, catch-up
+│   ├── Snakefile                 the closing "one command" demo
+│   └── report/make_report.py, template.html.j2
+└── participants/hands_on_lab.md  hg38, peek commands, checkpoints</pre>
+</section>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+</script>
+</body>
+</html>
