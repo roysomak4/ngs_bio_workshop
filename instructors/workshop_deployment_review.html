@@ -453,7 +453,7 @@ dependencies:
 <section>
   <h2>Roadmap</h2>
   <div>
-    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Get the content right</h3><ul><li>Revoke the ANNOVAR link, remove the ANNOVAR install, and purge the token from history (<code>git filter-repo</code>)</li><li>Rewrite the participant guide for GRCh38, the <code>ngs_ws_*</code> files and the three-round pipeline (done: <code>participants/grip_hands_on_lab_instructions.md</code>)</li><li>Fix the truth VCF header (done by <code>build_image.sh</code>); merge FLT3 exons 13–15 in the BED (done)</li><li>Write <code>annotate-vcf</code> (fastVEP) and <code>benchmark-vcf</code> (bcftools, position-window match for the ITD)</li><li>Replace Mambaforge with Miniforge3; pin versions in a lock file (written by the first build)</li><li>Run all three rounds on a test VM and replace the predicted R1–R3 columns with the real results</li></ul></div></div>
+    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Get the content right</h3><ul><li>Revoke the ANNOVAR link, remove the ANNOVAR install, and purge the token from history (<code>git filter-repo</code>)</li><li>Rewrite the participant guide for GRCh38, the <code>ngs_ws_*</code> files and the three-round pipeline (done: <code>docs/index.html</code>, served with GitHub Pages)</li><li>Fix the truth VCF header (done by <code>build_image.sh</code>); merge FLT3 exons 13–15 in the BED (done)</li><li>Write <code>annotate-vcf</code> (fastVEP) and <code>benchmark-vcf</code> (bcftools, position-window match for the ITD)</li><li>Replace Mambaforge with Miniforge3; pin versions in a lock file (written by the first build)</li><li>Run all three rounds on a test VM and replace the predicted R1–R3 columns with the real results</li></ul></div></div>
     <div class="phase"><div><div class="when">Phase 2</div></div><div><h3>Provision with dovm</h3><ul><li>Upload the indexed hg38 reference to the prep VM; <code>upload_and_build.sh</code> + <code>build_image.sh</code> for the conda env, fastVEP build and data, web portal, <code>/etc/skel</code> (written)</li><li>One snapshot with all assets; retire the NFS server</li><li><code>course.yaml</code> with 40 students and 2 spares, plus <code>check_vms.sh</code> (written)</li><li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output</li><li>Script dataset preparation; move binaries out of git</li></ul></div></div>
     <div class="phase"><div><div class="when">Phase 3</div></div><div><h3>Improve the participant experience</h3><ul><li>Web portal on each VM: reports and igv.js page (written)</li><li><code>workshop.env</code>, <code>check-step</code>, <code>catch-up</code></li><li>Shared on-screen benchmark table across rounds</li><li>Optional clinical report generator</li></ul></div></div>
   </div>
@@ -468,7 +468,7 @@ dependencies:
 │   ├── data/ngs_data/                 FASTQ, BED, truth VCF
 │   └── archived_scripts/              old NFS/ANNOVAR setup
 ├── instructors/data_prep/             to do: make_workshop_data.sh (incl. FLT3 ITD reads)
-└── participants/grip_hands_on_lab_instructions.md   written: GRCh38, three rounds, peek commands, IGV tasks</pre>
+└── docs/index.html                   participant guide (GitHub Pages): three rounds, copy buttons, IGV tasks</pre>
 </section>
 
 </div>
