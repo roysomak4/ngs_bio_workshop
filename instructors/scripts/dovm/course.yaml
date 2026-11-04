@@ -1,0 +1,23 @@
+# Participant VMs, created from the workshop snapshot. Run from instructors/scripts:
+#   dovm validate dovm/course.yaml
+#   dovm create dovm/course.yaml --login-user bioseq --login-password-file pw.txt
+# Replace the image placeholder with the snapshot ID that snapshot.sh prints;
+# dovm validate rejects the placeholder, so a forgotten edit fails before anything is created.
+name: ngs-course-2026
+region: nyc3                # must be a region that holds the snapshot
+image: REPLACE_WITH_SNAPSHOT_ID
+ssh_keys:
+  - "51842390"
+monitoring: true
+project: AMP 2026 NGS bioinformatics bootcamp
+roles:
+  student:
+    size: s-4vcpu-8gb-240gb-intel
+    hosts: [student01, student02, student03, student04, student05, student06, student07, student08,
+            student09, student10, student11, student12, student13, student14, student15, student16,
+            student17, student18, student19, student20, student21, student22, student23, student24,
+            student25, student26, student27, student28, student29, student30, student31, student32,
+            student33, student34, student35, student36, student37, student38, student39, student40]
+  spare:
+    size: s-4vcpu-8gb-240gb-intel
+    hosts: [spare01, spare02]

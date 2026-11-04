@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGV · NGS Workshop</title>
+<style>
+:root { --bg: #f7f8f6; --card: #fff; --fg: #1b2420; --muted: #5b6862; --line: #dde3df; --accent: #1f6f5c; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #121715; --card: #19201d; --fg: #e3ebe7; --muted: #9aa8a1; --line: #2b3531; --accent: #5fc3a6;  color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #121715; --card: #19201d; --fg: #e3ebe7; --muted: #9aa8a1; --line: #2b3531; --accent: #5fc3a6;  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header a { color: var(--accent); }
+.layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 56px); }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+aside { padding: 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
+h2 { margin: 0 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+button { font: inherit; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: inherit; cursor: pointer; text-align: left; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { cursor: not-allowed; opacity: .55; }
+.file { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
+.hint { font-size: .78rem; color: var(--muted); }
+.loci { display: flex; flex-wrap: wrap; gap: 6px; }
+#igv { padding: 8px; background: #fff; min-width: 0; }
+label { font-size: .88rem; }
+.theme-toggle { font: 600 .8rem system-ui, sans-serif; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--accent); }
+header .theme-toggle { margin-left: auto; }
+</style>
+<script>try{var t=localStorage.getItem("ngs-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header>
+  <a href="/">&larr; Portal</a>
+  <strong>IGV</strong>
+  <span class="hint">Click a file to add it as a track. Rerun "Refresh" after a step writes new files.</span>
+  <button type="button" class="theme-toggle" id="theme-toggle"></button>
+</header>
+<div class="layout">
+  <aside>
+    <section>
+      <h2>Jump to</h2>
+      <div class="loci" id="loci"></div>
+    </section>
+    <section>
+      <h2>Your files</h2>
+      <p><button id="refresh">Refresh list</button></p>
+      <p><label><input type="checkbox" id="softclips"> Show soft-clipped bases (try it at FLT3)</label></p>
+      <ul id="files"></ul>
+    </section>
+  </aside>
+  <div id="igv"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/igv@2.15.11/dist/igv.min.js"></script>
+<script>
+// Teaching loci from the truth set, each padded to about 40 bp (the ITD to its full span).
+const LOCI = [
+  ["KRAS G12D", "chr12:25245330-25245370"],
+  ["KRAS G13D", "chr12:25245327-25245367"],
+  ["EGFR L858R", "chr7:55191802-55191842"],
+  ["BRAF V600E", "chr7:140753316-140753356"],
+  ["PIK3CA H1047R", "chr3:179234277-179234317"],
+  ["FBXW7 frameshift", "chr4:152322983-152323023"],
+  ["FLT3 ITD", "chr13:28033750-28034250"],
+];
+// Directories the portal serves, listed as JSON by Caddy's file_server browse.
+const DIRS = ["/files/", "/data/"];
+
+let browser;
+
+function trackFor(dir, name, names) {
+  const url = dir + encodeURIComponent(name);
+  if (name.endsWith(".bam")) {
+    if (!names.has(name + ".bai")) return { error: "no .bai yet: run samtools index" };
+    return { type: "alignment", format: "bam", name, url, indexURL: url + ".bai",
+             showSoftClips: document.getElementById("softclips").checked };
+  }
+  if (name.endsWith(".vcf.gz")) {
+    if (!names.has(name + ".tbi")) return { error: "no .tbi yet: run tabix -p vcf" };
+    return { type: "variant", format: "vcf", name, url, indexURL: url + ".tbi" };
+  }
+  if (name.endsWith(".vcf")) return { type: "variant", format: "vcf", name, url, indexed: false };
+  if (name.endsWith(".bed")) return { type: "annotation", format: "bed", name, url, indexed: false };
+  return null;
+}
+
+async function listDir(dir) {
+  const res = await fetch(dir, { headers: { Accept: "application/json" } });
+  if (!res.ok) return [];
+  const items = await res.json();
+  return items.filter((i) => !i.is_dir).map((i) => i.name);
+}
+
+async function refresh() {
+  const list = document.getElementById("files");
+  list.replaceChildren();
+  for (const dir of DIRS) {
+    const names = await listDir(dir);
+    const nameSet = new Set(names);
+    for (const name of names.sort()) {
+      if (!trackFor(dir, name, nameSet)) continue;
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.className = "file";
+      btn.textContent = (dir === "/data/" ? "data/" : "") + name;
+      const probe = trackFor(dir, name, nameSet);
+      if (probe.error) {
+        btn.disabled = true;
+        btn.title = probe.error;
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = probe.error;
+        li.append(btn, hint);
+      } else {
+        btn.addEventListener("click", async () => {
+          try {
+            await browser.loadTrack(trackFor(dir, name, nameSet));
+          } catch (e) {
+            alert("Could not load " + name + ": " + e);
+          }
+        });
+        li.append(btn);
+      }
+      list.append(li);
+    }
+  }
+  if (!list.children.length) list.innerHTML = '<li class="hint">No BAM, VCF or BED files in ~/work yet.</li>';
+}
+
+for (const [label, locus] of LOCI) {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.addEventListener("click", () => browser.search(locus));
+  document.getElementById("loci").append(btn);
+}
+document.getElementById("refresh").addEventListener("click", refresh);
+
+// Links such as /igv.html?locus=chr12:25245330-25245370 (from the benchmark report) open at that locus.
+const startLocus = new URLSearchParams(location.search).get("locus") || LOCI[0][1];
+igv.createBrowser(document.getElementById("igv"), { genome: "hg38", locus: startLocus })
+  .then((b) => { browser = b; return refresh(); });
+</script>
+<script>
+(function () {
+  // Light/dark toggle: follows the OS until clicked, then remembers the choice.
+  var root = document.documentElement, btn = document.getElementById("theme-toggle");
+  var media = matchMedia("(prefers-color-scheme: dark)");
+  function dark() { return root.dataset.theme ? root.dataset.theme === "dark" : media.matches; }
+  function label() {
+    var d = dark();
+    btn.textContent = d ? "\u2600 Light" : "\u263E Dark";
+    btn.setAttribute("aria-label", d ? "Switch to light theme" : "Switch to dark theme");
+  }
+  btn.addEventListener("click", function () {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("ngs-theme", root.dataset.theme); } catch (e) {}
+    label();
+    document.dispatchEvent(new CustomEvent("themechange"));
+  });
+  media.addEventListener("change", label);
+  label();
+})();
+</script>
+</body>
+</html>

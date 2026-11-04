@@ -1,0 +1,25 @@
+# Workshop web portal, installed as /etc/caddy/Caddyfile by build_image.sh.
+# @USER@ and @HASH@ are filled in at build time. Plain HTTP on purpose: the VMs
+# are short-lived and hold only synthetic data.
+:80 {
+	basicauth {
+		@USER@ @HASH@
+	}
+
+	# Participant outputs: reports open in the browser, and BAM/VCF files are
+	# served with range requests for igv.js.
+	handle_path /files/* {
+		root * /home/@USER@/work
+		file_server browse
+	}
+
+	handle_path /data/* {
+		root * /home/@USER@/data
+		file_server browse
+	}
+
+	handle {
+		root * /opt/ngs/web
+		file_server
+	}
+}

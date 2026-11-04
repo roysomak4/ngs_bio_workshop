@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NGS Workshop VM</title>
+<style>
+:root { --bg: #f7f8f6; --card: #fff; --fg: #1b2420; --muted: #5b6862; --line: #dde3df; --accent: #1f6f5c; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #121715; --card: #19201d; --fg: #e3ebe7; --muted: #9aa8a1; --line: #2b3531; --accent: #5fc3a6;  color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #121715; --card: #19201d; --fg: #e3ebe7; --muted: #9aa8a1; --line: #2b3531; --accent: #5fc3a6;  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 40px 16px; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, sans-serif; }
+main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+h1 { margin: 0; font-size: 1.8rem; }
+.host { color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+a.card { display: block; padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; }
+a.card:hover, a.card:focus-visible { border-color: var(--accent); outline: none; }
+a.card b { display: block; color: var(--accent); font-size: 1.1rem; margin-bottom: 4px; }
+a.card span { color: var(--muted); font-size: .92rem; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: .9em; }
+p { margin: 0; }
+.theme-toggle { font: 600 .8rem system-ui, sans-serif; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--accent); }
+.theme-toggle { position: fixed; top: 12px; right: 12px; z-index: 20; }
+</style>
+<script>try{var t=localStorage.getItem("ngs-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<button type="button" class="theme-toggle" id="theme-toggle"></button>
+<main>
+  <div>
+    <h1>NGS Workshop VM</h1>
+    <p class="host" id="host"></p>
+  </div>
+  <p>Run the pipeline in your terminal (<code>ssh bioseq@<span id="ip"></span></code>). This page shows the files your commands create, as soon as each step finishes.</p>
+  <div class="cards">
+    <a class="card" href="/files/qc/"><b>QC reports</b><span>fastqc, fastp, mosdepth and MultiQC output in <code>~/work/qc</code></span></a>
+    <a class="card" href="/igv.html"><b>IGV</b><span>View your BAM, VCF and BED files on hg38</span></a>
+    <a class="card" href="/files/"><b>All results</b><span>Everything in <code>~/work</code></span></a>
+    <a class="card" href="/data/"><b>Input data</b><span>FASTQ, target BED and truth VCF in <code>~/data</code></span></a>
+  </div>
+</main>
+<script>
+  document.getElementById("host").textContent = location.host;
+  document.getElementById("ip").textContent = location.hostname;
+</script>
+<script>
+(function () {
+  // Light/dark toggle: follows the OS until clicked, then remembers the choice.
+  var root = document.documentElement, btn = document.getElementById("theme-toggle");
+  var media = matchMedia("(prefers-color-scheme: dark)");
+  function dark() { return root.dataset.theme ? root.dataset.theme === "dark" : media.matches; }
+  function label() {
+    var d = dark();
+    btn.textContent = d ? "\u2600 Light" : "\u263E Dark";
+    btn.setAttribute("aria-label", d ? "Switch to light theme" : "Switch to dark theme");
+  }
+  btn.addEventListener("click", function () {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("ngs-theme", root.dataset.theme); } catch (e) {}
+    label();
+    document.dispatchEvent(new CustomEvent("themechange"));
+  });
+  media.addEventListener("change", label);
+  label();
+})();
+</script>
+</body>
+</html>

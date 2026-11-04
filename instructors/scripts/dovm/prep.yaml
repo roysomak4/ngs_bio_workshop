@@ -1,0 +1,15 @@
+# One droplet for building the workshop image. Run from instructors/scripts:
+#   dovm create dovm/prep.yaml
+# The snapshot's minimum disk size is this droplet's disk, so keep the size the
+# same as the student VMs in course.yaml and never resize it upward.
+name: ngs-prep
+region: nyc3
+image: ubuntu-24-04-x64
+ssh_keys:
+  - "51842390"
+monitoring: true
+project: AMP 2026 NGS bioinformatics bootcamp
+roles:
+  prep:
+    size: s-4vcpu-8gb-240gb-intel
+    hosts: [prep-vm]

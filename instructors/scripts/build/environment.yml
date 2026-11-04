@@ -1,0 +1,24 @@
+# Conda environment for the NGS workshop VMs.
+# build_image.sh solves this file once and writes ngs-workshop.lock.txt next to
+# it. Commit the lock file: later builds install from it, so every VM in every
+# course year gets exactly the same tool versions.
+name: ngs
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - fastqc=0.12
+  - fastp=0.24
+  - bwa=0.7.18        # bwa-mem2 needs more RAM for its index than an 8 GB VM has
+  - samtools=1.21
+  - htslib=1.21       # bgzip, tabix
+  - bcftools=1.21     # benchmark-vcf, peek commands
+  - sambamba=1.0
+  - abra2=2.23
+  - varscan=2.4.4
+  - vardict-java=1.8
+  - r-base            # teststrandbias.R in the VarDict pipe
+  - fastvep           # exact version recorded in the lock file
+  - mosdepth=0.3
+  - multiqc=1.25
+  - python=3.12       # benchmark-vcf

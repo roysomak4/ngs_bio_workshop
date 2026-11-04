@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NGS Hands-On Lab</title>
+<meta name="description" content="Step-by-step guide: from FASTQ to annotated, benchmarked variant calls in three rounds.">
+<style>
+/* Layout: sticky sidebar (steps + progress) beside a ~72ch reading column; collapses to one column on narrow screens */
+:root {
+  --bg: #f7f8f6; --surface: #ffffff; --fg: #1b2420; --muted: #5d6b64; --line: #e1e6e3;
+  --code-bg: #f0f3f1; --accent: #1f6f5c; --accent-soft: #e2f0ea; --warn-bg: #fdf3df;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+    --code-bg: #1d2622; --accent: #5fc3a6; --accent-soft: #1b3a31; --warn-bg: #2e2715;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+  --code-bg: #1d2622; --accent: #5fc3a6; --accent-soft: #1b3a31; --warn-bg: #2e2715;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, kbd, pre { font-family: var(--mono); font-size: .86em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); }
+
+/* top bar */
+.bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  padding: 10px max(16px, env(safe-area-inset-left)); background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.bar strong { font-size: .95rem; }
+.ipbox { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: .88rem; color: var(--muted); }
+.ipbox input { width: 150px; font: 500 .9rem var(--mono); padding: 5px 8px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--surface); color: var(--fg); }
+.ipbox input:focus { border-color: var(--accent); outline: none; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 40px; max-width: 1100px; margin: 0 auto;
+  padding: 32px max(16px, env(safe-area-inset-left)) 96px; }
+nav.toc { position: sticky; top: 76px; align-self: start; font-size: .9rem; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+nav.toc a { display: flex; gap: 8px; align-items: baseline; padding: 4px 8px; border-radius: 6px; color: var(--fg); text-decoration: none; }
+nav.toc a:hover { background: var(--accent-soft); }
+nav.toc .n { font: 600 .75rem var(--mono); color: var(--muted); min-width: 1.6em; }
+nav.toc a.done .n { color: var(--accent); }
+nav.toc a.done .n::before { content: "✓"; }
+nav.toc a.done .n span { display: none; }
+nav.toc .group { margin: 12px 8px 4px; font: 600 .7rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.progress { margin: 0 8px 14px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; gap: 16px; }
+  nav.toc { position: static; }
+  nav.toc ol { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  nav.toc .group, .progress { display: none; }
+  nav.toc a { border: 1px solid var(--line); background: var(--surface); }
+  nav.toc .label { display: none; }
+}
+
+/* content */
+main { max-width: 74ch; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+h1 { margin: 0; font-size: clamp(1.9rem, 4.5vw, 2.6rem); line-height: 1.15; letter-spacing: -.015em; }
+h2 { margin: 0; font-size: 1.45rem; line-height: 1.25; }
+h3 { margin: 0; font-size: 1.05rem; }
+p, ul, ol { margin: 0; }
+ul { padding-left: 1.2em; }
+.lede { font-size: 1.1rem; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: .9rem; }
+.fact b { display: block; font-size: 1.05rem; }
+.intro { display: flex; flex-direction: column; gap: 16px; }
+.part { font: 600 .75rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+  padding-top: 8px; border-top: 1px solid var(--line); }
+
+section.step { display: flex; flex-direction: column; gap: 14px; }
+.step-head { display: flex; align-items: center; gap: 12px; }
+.badge { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font: 700 .85rem var(--mono); }
+.step-head h2 { flex: 1; }
+.done-toggle { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); cursor: pointer; user-select: none; }
+.done-toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+pre { position: relative; margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 64px 12px 14px; overflow-x: auto; line-height: 1.5; }
+pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.copy { position: absolute; top: 7px; right: 7px; font: 600 .72rem var(--sans); padding: 4px 9px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.copy:hover { color: var(--accent); border-color: var(--accent); }
+.copy.ok { color: var(--accent); }
+.ip { color: var(--accent); font-weight: 600; }
+
+details.peek { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 10px 14px; }
+details.peek > summary { cursor: pointer; font-weight: 600; font-size: .92rem; }
+details.peek > summary::marker { color: var(--accent); }
+details.peek[open] > summary { margin-bottom: 10px; }
+details.peek > :not(summary) + :not(summary) { margin-top: 10px; }
+
+.view { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: .92rem; }
+.view::before { content: "View"; font: 600 .7rem var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 999px; }
+a.portal:not([href]) { color: var(--fg); text-decoration: none; cursor: help; }
+
+.callouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.callout { border-radius: 8px; padding: 12px 14px; font-size: .93rem; }
+.callout b { display: block; font-size: .72rem; font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.expect { background: var(--accent-soft); }
+.discuss { background: var(--warn-bg); }
+
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.tbl { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+tr:last-child td { border-bottom: 0; }
+ol.tasks { padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px; }
+footer { color: var(--muted); font-size: .85rem; }
+
+@media print {
+  .bar, nav.toc, .copy, .done-toggle { display: none; }
+  .layout { display: block; padding: 0; }
+  details.peek > summary { list-style: none; }
+  pre { white-space: pre-wrap; padding-right: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+.theme-toggle { font: 600 .8rem system-ui, sans-serif; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--accent); }
+</style>
+<script>try{var t=localStorage.getItem("ngs-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+
+<div class="bar">
+  <strong>NGS Hands-On Lab</strong>
+  <label class="ipbox">Your VM IP
+    <input id="ip" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 203.0.113.10">
+  </label>
+  <button type="button" class="theme-toggle" id="theme-toggle"></button>
+</div>
+
+<div class="layout">
+<nav class="toc" aria-label="Steps">
+  <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  <ol id="toc"></ol>
+</nav>
+
+<main>
+
+<header class="intro">
+  <h1>From raw reads to benchmarked variant calls</h1>
+  <p class="lede">You will take sequencing reads from a tumor reference sample all the way to annotated variant calls, one command at a time. Then you will score your calls against the known answer and see what each change to the pipeline gains you.</p>
+  <div class="facts">
+    <div class="fact"><b>OncoSpan</b>tumor reference standard, 18 known variants in 9 genes</div>
+    <div class="fact"><b>49,642 read pairs</b>Illumina, ~140 bp, 17 target regions</div>
+    <div class="fact"><b>GRCh38</b>hg38 reference genome</div>
+  </div>
+  <h3>How this lab works</h3>
+  <ul>
+    <li><b>Run every command in your terminal.</b> Click <b>Copy</b> on a grey box, paste it into the terminal and press <kbd>Enter</kbd>. Wait for the prompt (<code>$</code>) to return before the next one. Paste with <kbd>Cmd</kbd>+<kbd>V</kbd> on macOS, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> on Linux, or a right-click in Windows PowerShell.</li>
+    <li><b>View results in your browser.</b> Enter your VM's IP address at the top of this page and the <b>View</b> links below open your own results. Log in with the same username and password as SSH.</li>
+    <li><b>"Look inside" boxes</b> are optional peeks at what a step changed. They are the best part of the lab, so open them if you have time.</li>
+    <li><b>Tick "Done"</b> after each step to track your progress. It is saved in this browser only.</li>
+  </ul>
+</header>
+
+<div class="part">Part 1 · From reads to an analysis-ready BAM</div>
+
+<section class="step" id="login" data-title="Log in">
+  <div class="step-head"><span class="badge">0</span><h2>Log in and get oriented</h2></div>
+  <p>Log in with the IP address, username and password on your handout:</p>
+  <pre><code>ssh bioseq@<span class="ip">&lt;your-ip&gt;</span></code></pre>
+  <p>Your account is ready. <code>~/data</code> holds the input files, and you will write everything into <code>~/work</code>. Move there now:</p>
+  <pre><code>cd ~/work</code></pre>
+  <p>Shortcuts for every file are already loaded. Check them:</p>
+  <pre><code>echo "sample=$SAMPLE threads=$THREADS"; echo "reference=$REF"; echo "targets=$BED"</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p><code>ls -lh ~/data</code> lists the input files, <code>cat ~/workshop.env</code> shows how the shortcuts are defined, and <code>head -3 $BED</code> shows the first target regions.</p>
+  </details>
+  <div class="view"><a class="portal" data-path="/">Your portal</a></div>
+</section>
+
+<section class="step" id="fastqc" data-title="fastqc">
+  <div class="step-head"><span class="badge">1</span><h2>Quality check the raw reads</h2></div>
+  <p>FASTQ files store each read as four lines: a name, the bases, a <code>+</code> separator, and one quality character per base. <b>fastqc</b> summarizes quality across all reads.</p>
+  <pre><code>fastqc -t $THREADS -o qc $R1 $R2</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Print the first read:</p>
+    <pre><code>zcat $R1 | head -4</code></pre>
+    <p>Each quality character encodes a Phred score. <code>printf '%d\n' "'F"</code> prints 70, and 70 − 33 = Q37: roughly a 1-in-5,000 chance that the base is wrong.</p>
+  </details>
+  <div class="view"><a class="portal" data-path="/files/qc/ngs_ws_R1_fastqc.html">ngs_ws_R1_fastqc.html</a></div>
+</section>
+
+<section class="step" id="fastp" data-title="fastp">
+  <div class="step-head"><span class="badge">2</span><h2>Trim and filter the reads</h2></div>
+  <p><b>fastp</b> removes adapter sequence and low-quality read ends, and drops reads that become too short.</p>
+  <pre><code>fastp -i $R1 -I $R2 -o $SAMPLE.trim_R1.fq.gz -O $SAMPLE.trim_R2.fq.gz -w $THREADS -h qc/$SAMPLE.fastp.html -j qc/$SAMPLE.fastp.json</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Compare reads and Q30 before and after filtering:</p>
+    <pre><code>jq .summary qc/$SAMPLE.fastp.json</code></pre>
+  </details>
+  <div class="view"><a class="portal" data-path="/files/qc/ngs_ws.fastp.html">ngs_ws.fastp.html</a></div>
+</section>
+
+<section class="step" id="bwa" data-title="bwa">
+  <div class="step-head"><span class="badge">3</span><h2>Align the reads to the genome</h2></div>
+  <p><b>bwa</b> finds where each read pair comes from in the 3-billion-base GRCh38 genome. <code>-R</code> tags every read with the sample name. This takes a couple of minutes, mostly to load the genome index into memory.</p>
+  <pre><code>bwa mem -v 1 -t $THREADS -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA" $REF $SAMPLE.trim_R1.fq.gz $SAMPLE.trim_R2.fq.gz &gt; $SAMPLE.sam</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>SAM is plain text with one line per read. Columns 1–9 are the read name, flag, chromosome, position, mapping quality (MAPQ), CIGAR (how the read lines up, e.g. <code>140M</code> = 140 matching bases) and mate information:</p>
+    <pre><code>grep -v '^@' $SAMPLE.sam | head -3 | cut -f1-9</code></pre>
+  </details>
+</section>
+
+<section class="step" id="samtools" data-title="samtools">
+  <div class="step-head"><span class="badge">4</span><h2>Convert to BAM, sort and index</h2></div>
+  <p>BAM is the compressed binary form of SAM. Sorting by position and indexing let tools jump straight to any region.</p>
+  <pre><code>samtools view -b -o $SAMPLE.raw.bam $SAMPLE.sam</code></pre>
+  <pre><code>samtools sort -@ $THREADS -o $SAMPLE.sorted.bam $SAMPLE.raw.bam</code></pre>
+  <pre><code>samtools index $SAMPLE.sorted.bam</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Compare file sizes, then count the reads covering KRAS codon 12:</p>
+    <pre><code>ls -lh $SAMPLE.sam $SAMPLE.*.bam</code></pre>
+    <pre><code>samtools view -c $SAMPLE.sorted.bam chr12:25245350</code></pre>
+  </details>
+</section>
+
+<section class="step" id="markdup" data-title="sambamba markdup">
+  <div class="step-head"><span class="badge">5</span><h2>Mark PCR duplicates</h2></div>
+  <p>Library PCR makes identical copies of some fragments. Copies are not independent evidence, so <b>sambamba</b> flags them (SAM flag 1024) and the variant callers ignore them.</p>
+  <pre><code>sambamba markdup -t $THREADS $SAMPLE.sorted.bam $SAMPLE.dedup.bam 2&gt; qc/$SAMPLE.markdup.log</code></pre>
+  <pre><code>samtools index $SAMPLE.dedup.bam</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>How many reads are now marked as duplicates?</p>
+    <pre><code>samtools flagstat $SAMPLE.dedup.bam</code></pre>
+  </details>
+</section>
+
+<section class="step" id="abra2" data-title="ABRA2">
+  <div class="step-head"><span class="badge">6</span><h2>Realign reads around indels</h2></div>
+  <p>Aligners place reads one at a time, so reads carrying an insertion or deletion are often misaligned near its ends. <b>ABRA2</b> assembles the reads in each target region and realigns them together.</p>
+  <pre><code>mkdir -p ~/tmp</code></pre>
+  <pre><code>abra2 --in $SAMPLE.dedup.bam --out $SAMPLE.realigned.bam --ref $REF --targets $BED --threads $THREADS --tmpdir ~/tmp &gt; qc/$SAMPLE.abra2.log 2&gt;&amp;1</code></pre>
+  <pre><code>samtools index $SAMPLE.realigned.bam</code></pre>
+  <p>From here on, <code>$BAM</code> refers to <code>ngs_ws.realigned.bam</code>.</p>
+  <details class="peek"><summary>Look inside (in IGV, step 12)</summary>
+    <p>Compare <code>ngs_ws.dedup.bam</code> and <code>ngs_ws.realigned.bam</code> at the <b>FBXW7 frameshift</b>. After ABRA2, more reads show the 1-base deletion instead of mismatches near their ends.</p>
+  </details>
+</section>
+
+<section class="step" id="qc" data-title="Coverage + MultiQC">
+  <div class="step-head"><span class="badge">7</span><h2>Check coverage and combine the QC</h2></div>
+  <p>Low-VAF variants need deep coverage. <b>mosdepth</b> measures depth across each target region.</p>
+  <pre><code>mosdepth -t $THREADS -n -b $BED --thresholds 100,250,500 qc/$SAMPLE $BAM</code></pre>
+  <pre><code>samtools flagstat $BAM &gt; qc/$SAMPLE.flagstat.txt</code></pre>
+  <p><b>MultiQC</b> collects every QC result so far into one report:</p>
+  <pre><code>multiqc -f -o qc/multiqc qc</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>The five targets with the lowest mean depth:</p>
+    <pre><code>zcat qc/$SAMPLE.regions.bed.gz | sort -k5,5n | head -5</code></pre>
+  </details>
+  <div class="view"><a class="portal" data-path="/files/qc/multiqc/multiqc_report.html">multiqc_report.html</a></div>
+</section>
+
+<div class="part">Part 2 · Calling variants in three rounds</div>
+<p>Each round calls variants from the same BAM, annotates them with fastVEP, and scores them against the truth set: the 18 variants known to be in this sample.</p>
+
+<section class="step" id="round1" data-title="Round 1 · VarScan 5%">
+  <div class="step-head"><span class="badge">8</span><h2>Round 1 · VarScan with a 5% VAF cutoff</h2></div>
+  <p><code>samtools mpileup</code> counts the bases at every position in the targets. <b>VarScan</b> then reports positions where the alternate allele passes its thresholds: at least 5% of reads (<code>--min-var-freq 0.05</code>), at least 8× coverage, and support on both strands.</p>
+  <pre><code>samtools mpileup -B -q 20 -Q 30 -d 4000 -l $BED -f $REF $BAM | varscan mpileup2vcf --min-coverage 8 --min-var-freq 0.05 --p-value 0.05 --min-avg-qual 30 --strand-filter 1 --output-vcf 1 --variants &gt; r1.vcf</code></pre>
+  <p>Compress and index the VCF so IGV and bcftools can read it:</p>
+  <pre><code>bgzip -f r1.vcf &amp;&amp; tabix -f -p vcf r1.vcf.gz</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Each call with its VarScan allele frequency (<code>FREQ</code>):</p>
+    <pre><code>bcftools query -f '%CHROM:%POS\t%REF&gt;%ALT\t[%FREQ]\n' r1.vcf.gz</code></pre>
+    <p>The read counts behind one call, BRAF V600E:</p>
+    <pre><code>samtools mpileup -r chr7:140753336-140753336 -f $REF $BAM</code></pre>
+  </details>
+  <h3>Annotate</h3>
+  <p><b>fastVEP</b> adds genes, transcripts, consequences, HGVS names and ClinVar. <code>annotate-vcf</code> prints the full <code>fastvep</code> command before running it.</p>
+  <pre><code>annotate-vcf r1.vcf.gz r1</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Gene, consequence and protein change for each call:</p>
+    <pre><code>awk -F'\t' -v OFS='\t' '/^##/ {next} !h {for (i = 1; i &lt;= NF; i++) c[$i] = i; h = 1; next} $c["HGVSp"] != "-" {print $c["Location"], $c["SYMBOL"], $c["Consequence"], $c["HGVSp"]}' r1.fastvep.tsv | sort -u | column -t</code></pre>
+    <p><code>r1.fastvep.vcf</code> holds the same information in the VCF's <code>CSQ</code> field.</p>
+  </details>
+  <h3>Benchmark</h3>
+  <pre><code>benchmark-vcf r1.vcf.gz</code></pre>
+  <div class="callouts">
+    <div class="callout expect"><b>What to expect</b>Most variants are found, but not EGFR L858R (3%), KRAS G12D (4%) or the FLT3 ITD. BRAF V600E at 6% sits right at the cutoff.</div>
+    <div class="callout discuss"><b>Discuss</b>Is a 3% EGFR L858R clinically important? What limits how low the cutoff can go?</div>
+  </div>
+</section>
+
+<section class="step" id="round2" data-title="Round 2 · VarScan 2%">
+  <div class="step-head"><span class="badge">9</span><h2>Round 2 · VarScan with a 2% VAF cutoff</h2></div>
+  <p>The same command with <code>--min-var-freq 0.02</code>, then compress, annotate and benchmark:</p>
+  <pre><code>samtools mpileup -B -q 20 -Q 30 -d 4000 -l $BED -f $REF $BAM | varscan mpileup2vcf --min-coverage 8 --min-var-freq 0.02 --p-value 0.05 --min-avg-qual 30 --strand-filter 1 --output-vcf 1 --variants &gt; r2.vcf</code></pre>
+  <pre><code>bgzip -f r2.vcf &amp;&amp; tabix -f -p vcf r2.vcf.gz</code></pre>
+  <pre><code>annotate-vcf r2.vcf.gz r2</code></pre>
+  <pre><code>benchmark-vcf r2.vcf.gz</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>How many calls did each round make?</p>
+    <pre><code>for f in r1.vcf.gz r2.vcf.gz; do echo "$f: $(bcftools view -H $f | wc -l) calls"; done</code></pre>
+  </details>
+  <div class="callouts">
+    <div class="callout expect"><b>What to expect</b>L858R and G12D are now found. Check the "not in the truth set" list: a lower cutoff also lets through sequencing and PCR errors.</div>
+    <div class="callout discuss"><b>Discuss</b>How would a clinical lab decide whether a 2% call is real? Why does the FLT3 ITD still not appear?</div>
+  </div>
+</section>
+
+<section class="step" id="round3" data-title="Round 3 · VarDict">
+  <div class="step-head"><span class="badge">10</span><h2>Round 3 · VarDict for the FLT3 ITD</h2></div>
+  <p>The FLT3 ITD inserts 279 bases, about twice the read length. No read contains the whole insertion, so bwa cannot write it as an insertion. It soft-clips the part of each read that doesn't match the genome instead. mpileup only counts aligned bases, so VarScan never sees the ITD at any cutoff.</p>
+  <details class="peek"><summary>Look inside</summary>
+    <p>Reads near the ITD that are soft-clipped (an <code>S</code> in the CIGAR), then all reads there:</p>
+    <pre><code>samtools view $BAM chr13:28033800-28034200 | awk '$6 ~ /[0-9]+S/' | wc -l</code></pre>
+    <pre><code>samtools view -c $BAM chr13:28033800-28034200</code></pre>
+  </details>
+  <p><b>VarDict</b> assembles soft-clipped reads into the longer sequence they came from, so it can call the ITD. Its output goes through a strand-bias test (<code>teststrandbias.R</code>) and is converted to VCF (<code>var2vcf_valid.pl</code>):</p>
+  <pre><code>vardict-java -G $REF -N $SAMPLE -b $BAM -f 0.02 -c 1 -S 2 -E 3 -g 4 -th $THREADS $BED \
+  | teststrandbias.R \
+  | var2vcf_valid.pl -N $SAMPLE -E -f 0.02 &gt; r3.vcf</code></pre>
+  <pre><code>bgzip -f r3.vcf &amp;&amp; tabix -f -p vcf r3.vcf.gz</code></pre>
+  <pre><code>annotate-vcf r3.vcf.gz r3</code></pre>
+  <pre><code>benchmark-vcf r3.vcf.gz</code></pre>
+  <details class="peek"><summary>Look inside</summary>
+    <p>The ITD call (the long ALT allele is cut short here):</p>
+    <pre><code>bcftools view -H -r chr13:28033500-28034300 r3.vcf.gz | cut -f1-5 | cut -c1-120</code></pre>
+  </details>
+  <div class="callouts">
+    <div class="callout expect"><b>What to expect</b>The FLT3 ITD is found. Its observed VAF is usually lower than expected, because reads that only partly overlap the insertion are hard to count.</div>
+  </div>
+</section>
+
+<section class="step" id="compare" data-title="Compare rounds">
+  <div class="step-head"><span class="badge">11</span><h2>Compare the three rounds</h2></div>
+  <p>One report with all three rounds side by side:</p>
+  <pre><code>benchmark-vcf r1.vcf.gz r2.vcf.gz r3.vcf.gz --html qc/benchmark.html</code></pre>
+  <p><b>NEW</b> marks the round that first found each variant. Click any position to open it in IGV.</p>
+  <div class="view"><a class="portal" data-path="/files/qc/benchmark.html">benchmark.html</a></div>
+</section>
+
+<section class="step" id="igv" data-title="IGV">
+  <div class="step-head"><span class="badge">12</span><h2>Look at the evidence in IGV</h2></div>
+  <p>Open the IGV page. Click files on the left to add them as tracks: start with <code>ngs_ws.realigned.bam</code>, <code>r1.vcf.gz</code>, <code>r2.vcf.gz</code>, <code>r3.vcf.gz</code> and <code>data/ngs_ws_roi_sorted.bed</code>. Use the <b>Jump to</b> buttons to visit each variant.</p>
+  <div class="view"><a class="portal" data-path="/igv.html">IGV</a></div>
+  <ol class="tasks">
+    <li><b>KRAS G12D (4%):</b> find the few reads carrying the T. Would you trust this call? Compare with KRAS G13D (13%) three bases away.</li>
+    <li><b>EGFR L858R (3%):</b> which VCF tracks show a call here?</li>
+    <li><b>FBXW7 frameshift:</b> add <code>ngs_ws.dedup.bam</code> and compare it with the realigned BAM (step 6).</li>
+    <li><b>FLT3 ITD:</b> tick <b>Show soft-clipped bases</b>, then add the BAM again. Coloured soft-clipped ends pile up at the same place: the reads trying to cover the inserted sequence.</li>
+    <li><b>A round 2 call from the "not in the truth set" list</b> (click it in the benchmark report): how does the evidence compare with a real variant?</li>
+  </ol>
+</section>
+
+<section class="step" id="help" data-title="Troubleshooting" data-nodone>
+  <div class="step-head"><span class="badge">?</span><h2>Troubleshooting</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td><code>command not found</code></td><td>Log out and back in, or run <code>source /etc/profile.d/ngs.sh; source ~/workshop.env</code></td></tr>
+      <tr><td><code>No such file or directory</code></td><td>Run <code>cd ~/work</code>, then <code>ls</code> to check the previous step's output exists</td></tr>
+      <tr><td>A pasted command does nothing or shows <code>&gt;</code></td><td>The paste was incomplete. Press <kbd>Ctrl</kbd>+<kbd>C</kbd> and copy the box again</td></tr>
+      <tr><td>The connection dropped</td><td>Log in again and <code>cd ~/work</code>. Finished steps keep their files, so re-run only the step that was interrupted</td></tr>
+      <tr><td>A file is missing in IGV</td><td>Click <b>Refresh list</b>. BAMs need a <code>.bai</code> and VCFs a <code>.tbi</code> next to them (<code>samtools index</code>, <code>tabix -p vcf</code>)</td></tr>
+      <tr><td>The browser asks for a password</td><td>Same username and password as SSH</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>NGS Bioinformatics Workshop · hands-on lab guide</footer>
+</main>
+</div>
+
+<script>
+(function () {
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  const ipInput = document.getElementById("ip");
+  const ipRe = /^[0-9a-zA-Z.:-]{3,64}$/;
+
+  // VM address: ?ip= in the link wins, then the last value typed in this browser.
+  function applyIp(ip) {
+    const valid = ipRe.test(ip);
+    document.querySelectorAll(".ip").forEach((el) => { el.textContent = valid ? ip : "<your-ip>"; });
+    document.querySelectorAll("a.portal").forEach((a) => {
+      if (valid) {
+        a.href = "http://" + ip + a.dataset.path;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.removeAttribute("title");
+      } else {
+        a.removeAttribute("href");
+        a.title = "Enter your VM IP at the top of the page";
+      }
+    });
+  }
+  const fromUrl = new URLSearchParams(location.search).get("ip");
+  const initial = (fromUrl && ipRe.test(fromUrl) ? fromUrl : store.get("ngs-ip")) || "";
+  ipInput.value = initial;
+  if (initial) store.set("ngs-ip", initial);
+  applyIp(initial);
+  ipInput.addEventListener("input", () => {
+    const v = ipInput.value.trim();
+    store.set("ngs-ip", v);
+    applyIp(v);
+  });
+
+  // Copy buttons.
+  document.querySelectorAll("pre").forEach((pre) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const text = pre.querySelector("code").innerText.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) {
+        const range = document.createRange();
+        range.selectNodeContents(pre.querySelector("code"));
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand("copy");
+        sel.removeAllRanges();
+      }
+      btn.textContent = "Copied";
+      btn.classList.add("ok");
+      setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("ok"); }, 1500);
+    });
+    pre.append(btn);
+  });
+
+  // Sidebar steps and "Done" ticks.
+  const toc = document.getElementById("toc");
+  const steps = [...document.querySelectorAll("section.step")];
+  const groups = { login: "Part 1", round1: "Part 2" };
+  const links = {};
+  function updateProgress() {
+    const countable = steps.filter((s) => !("nodone" in s.dataset));
+    const done = countable.filter((s) => store.get("ngs-done-" + s.id) === "1").length;
+    document.getElementById("progress").style.width = (done / countable.length) * 100 + "%";
+  }
+  for (const s of steps) {
+    if (groups[s.id]) {
+      const g = document.createElement("li");
+      g.className = "group";
+      g.textContent = groups[s.id];
+      toc.append(g);
+    }
+    const badge = s.querySelector(".badge").textContent;
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = "#" + s.id;
+    a.innerHTML = '<span class="n"><span></span></span><span class="label"></span>';
+    a.querySelector(".n span").textContent = badge;
+    a.querySelector(".label").textContent = s.dataset.title;
+    li.append(a);
+    toc.append(li);
+    links[s.id] = a;
+    if ("nodone" in s.dataset) continue;
+    const label = document.createElement("label");
+    label.className = "done-toggle";
+    label.innerHTML = '<input type="checkbox"> Done';
+    const box = label.querySelector("input");
+    box.checked = store.get("ngs-done-" + s.id) === "1";
+    a.classList.toggle("done", box.checked);
+    box.addEventListener("change", () => {
+      store.set("ngs-done-" + s.id, box.checked ? "1" : "0");
+      a.classList.toggle("done", box.checked);
+      updateProgress();
+    });
+    s.querySelector(".step-head").append(label);
+  }
+  updateProgress();
+})();
+</script>
+<script>
+(function () {
+  // Light/dark toggle: follows the OS until clicked, then remembers the choice.
+  var root = document.documentElement, btn = document.getElementById("theme-toggle");
+  var media = matchMedia("(prefers-color-scheme: dark)");
+  function dark() { return root.dataset.theme ? root.dataset.theme === "dark" : media.matches; }
+  function label() {
+    var d = dark();
+    btn.textContent = d ? "\u2600 Light" : "\u263E Dark";
+    btn.setAttribute("aria-label", d ? "Switch to light theme" : "Switch to dark theme");
+  }
+  btn.addEventListener("click", function () {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("ngs-theme", root.dataset.theme); } catch (e) {}
+    label();
+    document.dispatchEvent(new CustomEvent("themechange"));
+  });
+  media.addEventListener("change", label);
+  label();
+})();
+</script>
+</body>
+</html>

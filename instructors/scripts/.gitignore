@@ -1,0 +1,5 @@
+# dovm and check_vms.sh write droplet IPs and logs here
+output/
+# participant password files
+pw.txt
+*.password
