@@ -49,8 +49,10 @@ if id "$LOGIN_USER" >/dev/null 2>&1; then
   echo "Participant account $LOGIN_USER"
   check "data copied to $home/data" test -s "$home/data/ngs_ws_R1.fastq.gz"
   check "web server can read $home/work" runuser -u caddy -- test -r "$home/work" -a -x "$home/work"
+  # bash -i: Ubuntu's ~/.bashrc returns early for non-interactive shells, before
+  # the workshop.env line, so a plain `runuser -l -c` never sees REF/BED.
   check "tools and variables load at login" \
-    runuser -l "$LOGIN_USER" -c 'command -v bwa && command -v fastvep && test -n "$REF" && test -s "$BED"'
+    runuser -l "$LOGIN_USER" -c 'bash -ic '\''command -v bwa && command -v fastvep && test -n "$REF" && test -s "$BED"'\'''
 else
   echo "Participant account $LOGIN_USER: not created yet (expected on the prep VM)"
 fi
