@@ -56,13 +56,18 @@ nav.toc a.done .n { color: var(--accent); }
 nav.toc a.done .n::before { content: "✓"; }
 nav.toc a.done .n span { display: none; }
 nav.toc .group { margin: 12px 8px 4px; font: 600 .7rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.progress { margin: 0 8px 14px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.progress-text { margin: 0 8px 6px; font: 600 .8rem var(--mono); color: var(--muted); }
+.progress-text b { color: var(--accent); }
+.progress { margin: 0 8px 14px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.reset { margin: 14px 8px 0; font: 600 .75rem var(--sans); padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--muted); cursor: pointer; }
+.reset:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; gap: 16px; }
   nav.toc { position: static; }
   nav.toc ol { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-  nav.toc .group, .progress { display: none; }
+  nav.toc .group, .progress, .progress-text { display: none; }
   nav.toc a { border: 1px solid var(--line); background: var(--surface); }
   nav.toc .label { display: none; }
 }
@@ -127,7 +132,7 @@ ol.tasks { padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px;
 footer { color: var(--muted); font-size: .85rem; }
 
 @media print {
-  .bar, nav.toc, .copy, .done-toggle { display: none; }
+  .bar, nav.toc, .copy, .done-toggle, .reset { display: none; }
   .layout { display: block; padding: 0; }
   details.peek > summary { list-style: none; }
   pre { white-space: pre-wrap; padding-right: 14px; }
@@ -150,8 +155,10 @@ footer { color: var(--muted); font-size: .85rem; }
 
 <div class="layout">
 <nav class="toc" aria-label="Steps">
+  <div class="progress-text" id="progress-text"><b>0%</b> complete</div>
   <div class="progress" aria-hidden="true"><span id="progress"></span></div>
   <ol id="toc"></ol>
+  <button type="button" class="reset" id="reset">Reset progress</button>
 </nav>
 
 <main>
@@ -169,7 +176,7 @@ footer { color: var(--muted); font-size: .85rem; }
     <li><b>Run every command in your terminal.</b> Click <b>Copy</b> on a grey box, paste it into the terminal and press <kbd>Enter</kbd>. Wait for the prompt (<code>$</code>) to return before the next one. Paste with <kbd>Cmd</kbd>+<kbd>V</kbd> on macOS, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> on Linux, or a right-click in Windows PowerShell.</li>
     <li><b>View results in your browser.</b> Enter your VM's IP address at the top of this page and the <b>View</b> links below open your own results. Log in with the same username and password as SSH.</li>
     <li><b>"Look inside" boxes</b> are optional peeks at what a step changed. They are the best part of the lab, so open them if you have time.</li>
-    <li><b>Tick "Done"</b> after each step to track your progress. It is saved in this browser only.</li>
+    <li><b>Tick "Done"</b> after each step to track your progress. It is saved in this browser only. <b>Reset progress</b> under the step list clears every tick.</li>
   </ul>
 </header>
 
@@ -388,6 +395,7 @@ footer { color: var(--muted); font-size: .85rem; }
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    remove(k) { try { localStorage.removeItem(k); } catch (e) {} },
   };
   const ipInput = document.getElementById("ip");
   const ipRe = /^[0-9a-zA-Z.:-]{3,64}$/;
@@ -450,10 +458,13 @@ footer { color: var(--muted); font-size: .85rem; }
   const steps = [...document.querySelectorAll("section.step")];
   const groups = { login: "Part 1", round1: "Part 2" };
   const links = {};
+  const boxes = {};
   function updateProgress() {
     const countable = steps.filter((s) => !("nodone" in s.dataset));
     const done = countable.filter((s) => store.get("ngs-done-" + s.id) === "1").length;
-    document.getElementById("progress").style.width = (done / countable.length) * 100 + "%";
+    const pct = Math.round((done / countable.length) * 100);
+    document.getElementById("progress").style.width = pct + "%";
+    document.querySelector("#progress-text b").textContent = pct + "%";
   }
   for (const s of steps) {
     if (groups[s.id]) {
@@ -477,6 +488,7 @@ footer { color: var(--muted); font-size: .85rem; }
     label.className = "done-toggle";
     label.innerHTML = '<input type="checkbox"> Done';
     const box = label.querySelector("input");
+    boxes[s.id] = box;
     box.checked = store.get("ngs-done-" + s.id) === "1";
     a.classList.toggle("done", box.checked);
     box.addEventListener("change", () => {
@@ -487,6 +499,17 @@ footer { color: var(--muted); font-size: .85rem; }
     s.querySelector(".step-head").append(label);
   }
   updateProgress();
+
+  // Clears every "Done" tick; the VM IP and theme are kept.
+  document.getElementById("reset").addEventListener("click", () => {
+    if (!confirm("Clear all \"Done\" ticks on this page?")) return;
+    for (const [id, box] of Object.entries(boxes)) {
+      store.remove("ngs-done-" + id);
+      box.checked = false;
+      links[id].classList.remove("done");
+    }
+    updateProgress();
+  });
 })();
 </script>
 <script>
