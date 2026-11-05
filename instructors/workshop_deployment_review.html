@@ -97,10 +97,10 @@ td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:n
 <header style="display:flex;flex-direction:column;gap:14px">
   <div class="eyebrow">Repository review · ngs_bio_workshop · branch 2026-upgrade</div>
   <h1>NGS Workshop Deployment Review</h1>
-  <div class="meta"><span>Revised 3 November 2026 (first issued 2 November)</span><span>Commit 9ebe4d1</span><span>Pipeline from <code>bioinformatics_pipeline_and_software_list.md</code></span><span>dovm (do-vm-manager) reviewed</span></div>
-  <p class="lede">The repo provisions one DigitalOcean VM per participant and walks them through a CLI pipeline. Setup is slow, fragile to re-run and depends on a shared NFS server, and the participant guide is out of sync with the 2026 hg38 dataset and tool list. The 2026 session runs three variant-calling rounds against a known truth set: VarScan at 5% VAF, VarScan at a lower cutoff, then VarDict for the FLT3 ITD, each annotated with fastVEP and reviewed in IGV. The dovm droplet manager plus a single pre-built snapshot covers the setup side.</p>
+  <div class="meta"><span>Revised 5 November 2026 (first issued 2 November)</span><span>Commit 140cf01</span><span>Pipeline from <code>bioinformatics_pipeline_and_software_list.md</code></span><span>dovm (do-vm-manager) reviewed</span></div>
+  <p class="lede">The repo provisions one DigitalOcean VM per participant from a single pre-built snapshot, using the dovm droplet manager, and walks participants through a CLI pipeline. The 2026 session runs three variant-calling rounds against a known truth set: VarScan at 5% VAF, VarScan at a lower cutoff, then VarDict for the FLT3 ITD, each annotated with fastVEP and reviewed in IGV. <code>docs/index.html</code> is the participant guide and the source of truth for participant-facing commands.</p>
   <div class="strip" aria-label="Data journey taught in the workshop">
-    <div class="stage" style="--c:var(--nt-a)"><b>FASTQ</b><span>49,642 read pairs, ~140 bp, 19 regions in 9 genes · fastqc, fastp</span></div>
+    <div class="stage" style="--c:var(--nt-a)"><b>FASTQ</b><span>49,642 read pairs, ~140 bp, 17 regions in 9 genes · fastqc, fastp</span></div>
     <div class="stage" style="--c:var(--nt-c)"><b>BAM</b><span>bwa mem → samtools sort/index → sambamba markdup → ABRA2 · mosdepth, MultiQC</span></div>
     <div class="stage" style="--c:var(--nt-g)"><b>VCF × 3</b><span>VarScan 5% → VarScan low VAF → VarDict (FLT3 ITD)</span></div>
     <div class="stage" style="--c:var(--nt-t)"><b>Annotated</b><span>fastVEP after every round</span></div>
@@ -111,15 +111,15 @@ td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:n
 <section>
   <h2>What needs attention first</h2>
   <div class="keys">
-    <div class="key"><span class="chip high">Licence</span><h3>ANNOVAR link is still in git</h3><p>fastVEP replaces ANNOVAR in the 2026 pipeline, but <code>configure_vm.sh:17</code> and the git history still hold a personal ANNOVAR download token. Ask the ANNOVAR team to revoke it, then remove it from history.</p></div>
-    <div class="key"><span class="chip high">High</span><h3>Guide is out of date</h3><p>The guide uses b37, <code>hd701</code>, ANNOVAR/hg19 and a single VarScan call. The 2026 session needs GRCh38, the <code>ngs_ws_*</code> files, three calling rounds, benchmarking and VarDict.</p></div>
-    <div class="key"><span class="chip high">High</span><h3>Retire the NFS server</h3><p>Every VM reads a ~5 GB bwa index from one NFS server at the same moment. Upload your indexed hg38 reference to the prep VM and bake it, the fastVEP data and the dataset into the snapshot instead.</p></div>
+    <div class="key"><span class="chip high">Before class</span><h3>Record real results per round</h3><p>The R1–R3 columns in the truth table below are predictions. Run all three rounds on a test VM and replace them with the actual calls, since depth and strand filters can change the borderline cases.</p></div>
+    <div class="key"><span class="chip med">Medium</span><h3>Script the dataset preparation</h3><p>How the FASTQ was subset from the source BAMs, and how the FLT3 ITD reads were added, is not written down. A <code>make_workshop_data.sh</code> would let it be rebuilt.</p></div>
+    <div class="key"><span class="chip low">Low</span><h3>Expand the README</h3><p>The top-level README is one line. Add a course outline, data provenance and a quick start for instructors and participants.</p></div>
   </div>
 </section>
 
 <section>
   <h2>The 2026 pipeline</h2>
-  <p class="prose">This follows <code>bioinformatics_pipeline_and_software_list.md</code>, with mosdepth and MultiQC added for BAM QC. Each calling round ends with fastVEP annotation and a benchmark against <code>ngs_ws_truth_vars.vcf</code>, so participants see what a parameter or caller change actually gains them. Commands assume <code>source ~/workshop.env</code> (see the participant section), with all outputs written under <code>~/work</code>.</p>
+  <p class="prose">This follows <code>bioinformatics_pipeline_and_software_list.md</code>, with mosdepth and MultiQC added for BAM QC. Each calling round ends with fastVEP annotation and a benchmark against <code>ngs_ws_truth_vars.vcf</code>, so participants see what a parameter or caller change actually gains them. The shortcuts in <code>~/workshop.env</code> are loaded at login, and all outputs go under <code>~/work</code>. The commands below match <code>docs/index.html</code>, which is the source of truth if they ever differ.</p>
   <div class="diagram">
 <pre class="mermaid">
 flowchart LR
@@ -143,17 +143,18 @@ flowchart LR
     <thead><tr><th>#</th><th>Tool</th><th>Command sketch</th><th>Output</th></tr></thead>
     <tbody>
       <tr><td class="num">1</td><td>fastqc</td><td><code>fastqc -t $THREADS -o qc $R1 $R2</code></td><td>HTML QC report per read file</td></tr>
-      <tr><td class="num">2</td><td>fastp</td><td><code>fastp -i $R1 -I $R2 -o trim_R1.fq.gz -O trim_R2.fq.gz -w $THREADS -h qc/fastp.html -j qc/fastp.json</code></td><td>Filtered FASTQ plus before/after QC</td></tr>
-      <tr><td class="num">3</td><td>bwa</td><td><code>bwa mem -t $THREADS -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA" $REF trim_R1.fq.gz trim_R2.fq.gz &gt; $SAMPLE.sam</code></td><td>SAM, kept on purpose so participants can read it</td></tr>
-      <tr><td class="num">4</td><td>samtools</td><td><code>samtools sort -@ $THREADS -o $SAMPLE.sorted.bam $SAMPLE.sam</code> then <code>samtools index</code></td><td>Sorted, indexed BAM</td></tr>
-      <tr><td class="num">5</td><td>sambamba</td><td><code>sambamba markdup -t $THREADS $SAMPLE.sorted.bam $SAMPLE.dedup.bam 2&gt; qc/markdup.log</code></td><td>Duplicates flagged (add <code>-r</code> to remove them)</td></tr>
-      <tr><td class="num">6</td><td>abra2</td><td><code>abra2 --in $SAMPLE.dedup.bam --out $SAMPLE.realigned.bam --ref $REF --targets $BED --threads $THREADS --tmpdir ~/tmp</code>, then <code>samtools index</code></td><td>Indel-realigned BAM used by every round</td></tr>
-      <tr><td class="num">6.1</td><td>mosdepth, samtools</td><td><code>mosdepth -t $THREADS -n -b $BED --thresholds 100,250,500 qc/$SAMPLE $SAMPLE.realigned.bam</code> and <code>samtools flagstat $SAMPLE.realigned.bam &gt; qc/$SAMPLE.flagstat</code></td><td>Per-region depth and % of each target at ≥100×/250×/500×</td></tr>
-      <tr><td class="num">6.2</td><td>multiqc</td><td><code>multiqc -f -o qc/multiqc qc</code></td><td>One HTML report combining fastqc, fastp, duplicate rate, flagstat and coverage</td></tr>
-      <tr><td class="num">7.1</td><td>varscan 2.4.4</td><td><code>samtools mpileup -B -q 20 -Q 30 -d 4000 -l $BED -f $REF $BAM | varscan mpileup2vcf --min-var-freq 0.05 --p-value 0.05 --strand-filter 1 --output-vcf 1 --variants &gt; r1.vcf</code><br/>then <code>annotate-vcf r1.vcf</code> and <code>benchmark-vcf r1.vcf</code></td><td>Round 1: misses EGFR L858R (3%), KRAS G12D (4%) and the FLT3 ITD</td></tr>
-      <tr><td class="num">7.2</td><td>varscan 2.4.4</td><td>Same command with <code>--min-var-freq 0.02</code>, then annotate and benchmark</td><td>Round 2: recovers L858R and G12D. Compare false positives with round 1.</td></tr>
-      <tr><td class="num">7.3</td><td>vardict</td><td><code>vardict-java -G $REF -N $SAMPLE -b $BAM -f 0.02 -c 1 -S 2 -E 3 -g 4 -th $THREADS $BED | teststrandbias.R | var2vcf_valid.pl -N $SAMPLE -E -f 0.02 &gt; r3.vcf</code>, then annotate and benchmark</td><td>Round 3: picks up the 279 bp FLT3 ITD</td></tr>
-      <tr><td class="num">8</td><td>IGV</td><td>Load the hg38 genome, <code>$SAMPLE.realigned.bam</code>, <code>r1/r2/r3.vcf.gz</code> and <code>$BED</code></td><td>Reads behind each call or miss</td></tr>
+      <tr><td class="num">2</td><td>fastp</td><td><code>fastp -i $R1 -I $R2 -o $SAMPLE.trim_R1.fq.gz -O $SAMPLE.trim_R2.fq.gz -w $THREADS -h qc/$SAMPLE.fastp.html -j qc/$SAMPLE.fastp.json</code></td><td>Filtered FASTQ plus before/after QC</td></tr>
+      <tr><td class="num">3</td><td>bwa</td><td><code>bwa mem -v 1 -t $THREADS -R "@RG\tID:$SAMPLE\tSM:$SAMPLE\tPL:ILLUMINA" $REF $SAMPLE.trim_R1.fq.gz $SAMPLE.trim_R2.fq.gz &gt; $SAMPLE.sam</code></td><td>SAM, kept on purpose so participants can read it</td></tr>
+      <tr><td class="num">4</td><td>samtools</td><td><code>samtools view -b -o $SAMPLE.raw.bam $SAMPLE.sam</code>, <code>samtools sort -@ $THREADS -o $SAMPLE.sorted.bam $SAMPLE.raw.bam</code>, then <code>samtools index</code></td><td>Sorted, indexed BAM</td></tr>
+      <tr><td class="num">5</td><td>sambamba</td><td><code>sambamba markdup -t $THREADS $SAMPLE.sorted.bam $SAMPLE.dedup.bam 2&gt; qc/$SAMPLE.markdup.log</code>, then <code>samtools index</code></td><td>Duplicates flagged (add <code>-r</code> to remove them)</td></tr>
+      <tr><td class="num">6</td><td>abra2</td><td><code>abra2 --in $SAMPLE.dedup.bam --out $SAMPLE.realigned.bam --ref $REF --targets $BED --threads $THREADS --tmpdir ~/tmp &gt; qc/$SAMPLE.abra2.log 2&gt;&amp;1</code>, then <code>samtools index</code></td><td>Indel-realigned BAM (<code>$BAM</code>) used by every round</td></tr>
+      <tr><td class="num">7</td><td>mosdepth, samtools</td><td><code>mosdepth -t $THREADS -n -b $BED --thresholds 100,250,500 qc/$SAMPLE $BAM</code> and <code>samtools flagstat $BAM &gt; qc/$SAMPLE.flagstat.txt</code></td><td>Per-region depth and % of each target at ≥100×/250×/500×</td></tr>
+      <tr><td class="num">7</td><td>multiqc</td><td><code>multiqc -f -o qc/multiqc qc</code></td><td>One HTML report combining fastqc, fastp, duplicate rate, flagstat and coverage</td></tr>
+      <tr><td class="num">8</td><td>varscan 2.4.4</td><td><code>samtools mpileup -B -q 20 -Q 30 -d 4000 -l $BED -f $REF $BAM | varscan mpileup2vcf --min-coverage 8 --min-var-freq 0.05 --p-value 0.05 --min-avg-qual 30 --strand-filter 1 --output-vcf 1 --variants &gt; r1.vcf</code><br/>then <code>bgzip -f r1.vcf &amp;&amp; tabix -f -p vcf r1.vcf.gz</code>, <code>annotate-vcf r1.vcf.gz r1</code> and <code>benchmark-vcf r1.vcf.gz</code></td><td>Round 1: misses EGFR L858R (3%), KRAS G12D (4%) and the FLT3 ITD</td></tr>
+      <tr><td class="num">9</td><td>varscan 2.4.4</td><td>Same command with <code>--min-var-freq 0.02</code> into <code>r2.vcf</code>, then compress, annotate and benchmark</td><td>Round 2: recovers L858R and G12D. Compare false positives with round 1.</td></tr>
+      <tr><td class="num">10</td><td>vardict</td><td><code>vardict-java -G $REF -N $SAMPLE -b $BAM -f 0.02 -c 1 -S 2 -E 3 -g 4 -th $THREADS $BED | teststrandbias.R | var2vcf_valid.pl -N $SAMPLE -E -f 0.02 &gt; r3.vcf</code>, then compress, annotate and benchmark</td><td>Round 3: picks up the 279 bp FLT3 ITD</td></tr>
+      <tr><td class="num">11</td><td>benchmark-vcf</td><td><code>benchmark-vcf r1.vcf.gz r2.vcf.gz r3.vcf.gz --html qc/benchmark.html</code></td><td>Side-by-side report of all three rounds</td></tr>
+      <tr><td class="num">12</td><td>IGV</td><td>Portal IGV page: <code>ngs_ws.realigned.bam</code>, <code>r1/r2/r3.vcf.gz</code> and <code>data/ngs_ws_roi_sorted.bed</code> on hg38</td><td>Reads behind each call or miss</td></tr>
     </tbody>
   </table></div>
   <div class="cols">
@@ -176,52 +177,16 @@ flowchart LR
 </section>
 
 <section>
-  <h2>How deployment works today</h2>
-  <p class="prose">Provisioning runs from the instructor's laptop in four manual stages. VM creation depends on a separate GitLab repo (<code>digitalocean_manage_vms</code>). Configuration then pushes two scripts over SSH to each VM, two at a time.</p>
-  <div class="diagram">
-<pre class="mermaid">
-flowchart LR
-  A[create_vm.py<br/>external GitLab repo] --> B[vm_ips.txt]
-  B --> C[ssh-keyscan<br/>known_hosts]
-  C --> D[parallel -j 2<br/>prepare_vm.sh IP]
-  D --> E[scp + ssh root<br/>create_user.sh]
-  E --> F[scp + ssh bioseq<br/>configure_vm.sh]
-  F --> G[(NFS 143.198.11.33<br/>/exports/assets)]
-  F --> H[Mambaforge + bioconda<br/>ANNOVAR tarball]
-  F --> I[unzip sample_data.zip<br/>reboot]
-</pre>
-  </div>
-  <div class="tbl"><table>
-    <thead><tr><th>File</th><th>Role</th><th>Observation</th></tr></thead>
-    <tbody>
-      <tr><td class="loc">vm_setup_instructions.md</td><td>Runbook</td><td>Clear, but every step is copy-paste. No teardown, no health check, no participant roster.</td></tr>
-      <tr><td class="loc">prepare_vm.sh</td><td>Orchestrator</td><td>Uses <code>ssh -t</code> (interactive TTY), so <code>parallel</code> runs only 2 at a time. No per-VM log, no exit-code check.</td></tr>
-      <tr><td class="loc">create_user.sh</td><td>Root bootstrap</td><td>No <code>set -e</code>. Edits <code>sshd_config</code> with <code>sed</code>, which Ubuntu cloud images override via <code>sshd_config.d/50-cloud-init.conf</code> (likely the cause of fix d6f050b).</td></tr>
-      <tr><td class="loc">configure_vm.sh</td><td>User bootstrap</td><td>Not idempotent: rerunning appends a second <code>fstab</code> line. Installs <code>Mambaforge</code>, which is retired upstream (Miniforge3 replaces it). Only VarScan is version-pinned. Installs ANNOVAR and no VarDict or fastVEP. Reboots even if a step failed.</td></tr>
-      <tr><td class="loc">grip_hands_on_lab_instructions.md</td><td>Participant guide</td><td>Good progression. Hard-codes <code>hd701</code> sample, b37 reference, <code>assets/ngs_workshop.bed</code>, ANNOVAR with 2015 ClinVar, and one VarScan call. No benchmarking, VarDict, checkpoints or expected outputs.</td></tr>
-      <tr><td class="loc">data/ngs_data/</td><td>Workshop dataset</td><td><code>ngs_ws_R1/R2.fastq.gz</code> (~7 MB), <code>ngs_ws_roi_sorted.bed</code>, <code>ngs_ws_truth_vars.vcf</code> and a 21 MB <code>prep_temp_files.tar.gz</code>, all committed to git. The subsetting steps (BED filter → name sort → fixmate → FASTQ, plus the FLT3 ITD reads merged in) are not scripted.</td></tr>
-    </tbody>
-  </table></div>
-</section>
-
-<section>
   <h2>Full findings</h2>
   <p class="prose muted">Scope: the VMs are short-lived, hold no PHI or sensitive data, and use one simple shared login on purpose. Security hardening that needs extra workflow is out of scope and marked that way below.</p>
   <div class="tbl"><table>
     <thead><tr><th>Severity</th><th>Where</th><th>Issue</th><th>Suggested fix</th></tr></thead>
     <tbody>
-      <tr><td><span class="chip high">Licence</span></td><td class="loc">configure_vm.sh:17</td><td>ANNOVAR personal download URL in a public repo. ANNOVAR is no longer used.</td><td>Ask the ANNOVAR team to revoke the link, delete the ANNOVAR install, and purge the token from history with <code>git filter-repo</code>.</td></tr>
-      <tr><td><span class="chip oos">Out of scope</span></td><td class="loc">create_user.sh:9-16</td><td>Same simple password on every VM, password SSH, passwordless sudo.</td><td>Accepted for short-lived teaching VMs. dovm's <code>--login-user</code> keeps the shared password and also keeps root key-only, at no extra effort.</td></tr>
-      <tr><td><span class="chip oos">Resolved</span></td><td class="loc">image build</td><td>fastVEP needs installing plus GRCh38 annotation data.</td><td>Resolved: fastVEP now installs from bioconda with the other tools (exact version in the lock file). The build downloads the Ensembl GFF3 and builds a ClinVar database with <code>fastvep sa-build</code>.</td></tr>
-      <tr><td><span class="chip high">High</span></td><td class="loc">configure_vm.sh:5</td><td>NFS export is read-write, over a public IP, mounted with <code>soft,intr</code>.</td><td>Remove NFS. Bake the reference, bwa index, fastVEP data and dataset into the snapshot (see the dovm section).</td></tr>
-      <tr><td><span class="chip high">High</span></td><td class="loc">participant guide</td><td>Data is GRCh38; commands use b37/hg19. Sample names, BED path and annotation are stale, and rounds 2–3, the benchmarks and VarDict are missing.</td><td>Rewrite the guide around the 2026 pipeline above: GRCh38 no-alt analysis set, <code>ngs_ws_*</code> files, <code>ngs_ws_roi_sorted.bed</code>, fastVEP, three rounds plus benchmarking.</td></tr>
-      <tr><td><span class="chip high">High</span></td><td class="loc">configure_vm.sh:10-14</td><td>Unpinned installs from <code>latest</code>. Builds differ between workshops and can break the morning of class.</td><td>Commit an <code>environment.yml</code> plus lock file (conda-lock or pixi), install from the lock, and pin fastVEP by release tag.</td></tr>
-      <tr><td><span class="chip med">Medium</span></td><td class="loc">all scripts</td><td>No <code>set -euo pipefail</code>, no logging, no verification. A failed install still reboots and looks done.</td><td>Strict mode in the image build script, and a smoke test on every VM: <code>check-vm</code> (with <code>--full</code> for a mini pipeline), run across all VMs by <code>check_vms.sh</code>. Done in <code>instructors/scripts/</code>.</td></tr>
-      <tr><td><span class="chip med">Medium</span></td><td class="loc">vm_setup_instructions.md:43</td><td>Serial-ish setup (<code>-j 2</code>, interactive SSH). Each VM downloads conda packages independently.</td><td>Build one snapshot, then create all droplets from it with dovm. Setup time drops from hours to the droplet boot time.</td></tr>
-      <tr><td><span class="chip med">Medium</span></td><td class="loc">data/ngs_data/</td><td>Binaries in git; dataset preparation, including how the FLT3 ITD reads were added, is undocumented.</td><td>Add <code>make_workshop_data.sh</code> that rebuilds the FASTQ from the source BAMs. Move binaries to Git LFS or a release asset.</td></tr>
-      <tr><td><span class="chip low">Low</span></td><td class="loc">ngs_ws_truth_vars.vcf</td><td>Header types are swapped (<code>HIAF</code> is String, <code>GENE</code> is Float with no Number). FORMAT <code>VD/AF/RD/ALD</code> on the FLT3 record are undefined. <code>GENE=.</code> on 17 of 18 records. bcftools reads it but prints warnings participants will see.</td><td>Fix the header once (<code>HIAF</code> Float, <code>GENE</code> String, add the missing FORMAT lines), fill <code>GENE</code> from the BED, then ship it bgzipped and indexed.</td></tr>
-      <tr><td><span class="chip oos">Resolved</span></td><td class="loc">ngs_ws_roi_sorted.bed</td><td>After padding, the FLT3 exon 13–15 intervals overlapped. VarDict works region by region, so a variant in an overlap could be reported twice.</td><td>Merged into one interval (<code>FLT3;NM_004119.3;exon-13-15</code>, <code>chr13:28033786-28034507</code>). The BED now has 17 non-overlapping regions, and all 18 truth variants still fall inside.</td></tr>
-      <tr><td><span class="chip low">Low</span></td><td class="loc">vm_setup_instructions.md:5</td><td>VM creation depends on an external GitLab repo.</td><td>Replaced by dovm. Course specs are in <code>instructors/scripts/dovm/</code>.</td></tr>
+      <tr><td><span class="chip oos">Out of scope</span></td><td class="loc">dovm --login-user</td><td>Same simple password on every VM, password SSH for the participant account.</td><td>Accepted for short-lived teaching VMs. The participant account has no sudo, and root stays SSH-key only.</td></tr>
+      <tr><td><span class="chip oos">By design</span></td><td class="loc">Caddyfile</td><td>The portal is plain HTTP with basic auth and the shared password.</td><td>Accepted: the VMs are short-lived and hold only synthetic data.</td></tr>
+      <tr><td><span class="chip med">Medium</span></td><td class="loc">data/ngs_data/</td><td>FASTQ and other binaries are committed to git; dataset preparation, including how the FLT3 ITD reads were added, is undocumented.</td><td>Add <code>make_workshop_data.sh</code> that rebuilds the FASTQ from the source BAMs. Optionally move binaries to Git LFS or a release asset.</td></tr>
+      <tr><td><span class="chip low">Low</span></td><td class="loc">ngs_ws_truth_vars.vcf</td><td>The committed file has swapped header types (<code>HIAF</code> String, <code>GENE</code> Float), undefined FORMAT fields on the FLT3 record, and <code>GENE=.</code> on 17 of 18 records.</td><td>Handled in the image: <code>build_image.sh</code> keeps the site columns, fixes the header types, fills <code>GENE</code> from the BED, and ships it bgzipped and indexed. Fixing the committed file too would remove the special case.</td></tr>
+      <tr><td><span class="chip oos">Done</span></td><td class="loc">ngs_ws_roi_sorted.bed</td><td>After padding, the FLT3 exon 13–15 intervals overlapped. VarDict works region by region, so a variant in an overlap could be reported twice.</td><td>Merged into one interval (<code>FLT3;NM_004119.3;exon-13-15</code>, <code>chr13:28033786-28034507</code>). The BED has 17 non-overlapping regions, and all 18 truth variants fall inside.</td></tr>
       <tr><td><span class="chip low">Low</span></td><td class="loc">README.md</td><td>One line. No overview of the course, data, or how the parts fit.</td><td>Add course outline, data provenance (OncoSpan reference standard plus FLT3 ITD), and a quick start for each audience.</td></tr>
     </tbody>
   </table></div>
@@ -229,7 +194,7 @@ flowchart LR
 
 <section>
   <h2>For instructors: provisioning with dovm</h2>
-  <p class="prose"><a href="https://github.com/roysomak4/do-vm-manager">dovm</a> (do-vm-manager) already does most of what this course needs. It creates droplets from a YAML spec in batches of 10, can be re-run safely, tags everything it owns, and writes IP lists and an Ansible inventory. Combined with one pre-built snapshot, it replaces <code>create_vm.py</code>, <code>create_user.sh</code>, <code>prepare_vm.sh</code>, the <code>ssh-keyscan</code> step and the NFS server.</p>
+  <p class="prose"><a href="https://github.com/roysomak4/do-vm-manager">dovm</a> (do-vm-manager) creates droplets from a YAML spec in batches of 10, can be re-run safely (it creates only missing hosts), tags everything it owns, and writes IP lists and an Ansible inventory. With <code>--login-user bioseq</code>, cloud-init creates the participant account with the shared password on first boot, while root stays SSH-key only. Every participant VM is created from one pre-built snapshot, so it boots with the tools, reference, fastVEP data and dataset already on its own disk. <code>check_vms.sh</code> reads the IP list from dovm's <code>output/vm_ips.txt</code>, labels each VM by hostname from <code>output/vms_ip_host.txt</code> (the participant handout), and checks all VMs in parallel over SSH. <code>dovm status</code>, <code>dovm list</code> and <code>dovm destroy</code> cover monitoring and teardown; destroy only touches droplets tagged <code>dovm:&lt;name&gt;</code>.</p>
   <div class="diagram">
 <pre class="mermaid">
 flowchart LR
@@ -247,26 +212,13 @@ flowchart LR
 </pre>
   </div>
 
-  <div class="tbl"><table>
-    <thead><tr><th>Today</th><th>With dovm + snapshot</th></tr></thead>
-    <tbody>
-      <tr><td><code>create_vm.py</code> from an external GitLab repo</td><td><code>dovm create course.yaml</code>. 40 VMs go out in 4 batches of 10 and are usually ready in 1–2 minutes.</td></tr>
-      <tr><td>Re-running after a partial failure</td><td>Safe. dovm creates only the missing hosts. <code>--rollback-on-failure</code> deletes what a failed run made.</td></tr>
-      <tr><td><code>create_user.sh</code> run as root over SSH</td><td><code>--login-user bioseq</code>. cloud-init creates the user with the same simple password on every VM. Root stays SSH-key only. The <code>sshd</code> setting goes in a drop-in that loads first, which fixes the problem behind commit d6f050b.</td></tr>
-      <tr><td><code>configure_vm.sh</code> on every VM (conda, ANNOVAR, unzip, reboot)</td><td>Runs once, on the prep VM, during image build. Student VMs boot ready.</td></tr>
-      <tr><td><code>ssh-keyscan</code> + <code>parallel -j 2 prepare_vm.sh</code></td><td>Not needed. <code>check_vms.sh</code> reads dovm's <code>output/vm_ips.txt</code> and checks all VMs in parallel over SSH.</td></tr>
-      <tr><td>NFS server at 143.198.11.33</td><td>Retired. Reference, indexes, fastVEP data and dataset are on every VM's own disk.</td></tr>
-      <tr><td>No teardown or overview</td><td><code>dovm status</code>, <code>dovm list</code>, <code>dovm destroy</code>. Destroy only touches droplets tagged <code>dovm:&lt;name&gt;</code>.</td></tr>
-    </tbody>
-  </table></div>
-
   <div class="cols">
     <div>
       <h3>Course run book</h3>
 <pre># from instructors/scripts
 # 1. Build the image (once per course year)
 dovm create dovm/prep.yaml
-./upload_and_build.sh &lt;prep-ip&gt; pw.txt /path/to/hg38
+./upload_and_build.sh &lt;prep-ip&gt; pw.txt /path/to/hg38[.tar.gz]
 ./snapshot.sh &lt;prep-ip&gt; ngs-2026-v1
 dovm destroy dovm/prep.yaml
 
@@ -287,24 +239,24 @@ dovm destroy dovm/course.yaml</pre>
       <h3>course.yaml</h3>
 <pre>name: ngs-course-2026
 region: nyc3               # same region as the snapshot
-image: REPLACE_WITH_SNAPSHOT_ID
+image: 253068476           # snapshot ID from snapshot.sh
 ssh_keys: ["51842390"]
 monitoring: true
 project: AMP 2026 NGS bioinformatics bootcamp
 roles:
   student:
-    size: s-4vcpu-8gb-240gb-intel
+    size: s-4vcpu-8gb
     hosts: [student01, student02, ..., student40]
   spare:
-    size: s-4vcpu-8gb-240gb-intel
+    size: s-4vcpu-8gb
     hosts: [spare01, spare02]</pre>
-      <p class="muted" style="font-size:.88rem">Abbreviated here; <code>instructors/scripts/dovm/course.yaml</code> lists all 40 hosts. The size and project match <code>hosts/test.yaml</code> in the dovm repo. 8 GB covers bwa mem on full hg38 (~5.5 GB). Run ABRA2 and VarDict one at a time with a capped Java heap.</p>
+      <p class="muted" style="font-size:.88rem">Abbreviated here; <code>instructors/scripts/dovm/course.yaml</code> lists all 40 hosts. The size matches <code>dovm/prep.yaml</code>, so the snapshot's minimum disk always fits. 8 GB covers bwa mem on full hg38 (~5.5 GB). Run ABRA2 and VarDict one at a time with a capped Java heap.</p>
     </div>
   </div>
 
   <h3>Snapshot size: what DigitalOcean's docs say</h3>
   <div class="note prose">
-    <p>DigitalOcean does not document a maximum size for Droplet snapshots, and no limit on how many droplets can be created from one. The size limits you may have run into last time are these:</p>
+    <p>DigitalOcean does not document a maximum size for Droplet snapshots, and no limit on how many droplets can be created from one. The size limits that do apply are these:</p>
     <ul style="margin-top:8px">
       <li><b>Disk must be at least the source disk.</b> "You must select a disk size equal to or larger than the Droplet used to create the snapshot." A snapshot taken from a 240 GB droplet cannot create a 160 GB one, and you cannot shrink it afterwards.</li>
       <li><b>100 GB applies to custom images, not snapshots.</b> Uploaded images "must be less than 100 GB uncompressed." Snapshots taken from a droplet are not uploaded images, so this cap does not apply to them.</li>
@@ -377,7 +329,7 @@ dependencies:
     <div>
       <h3>Make the pipeline teachable</h3>
       <ul>
-        <li>Start with <code>source ~/workshop.env</code> that sets <code>SAMPLE</code>, <code>R1</code>, <code>R2</code>, <code>REF</code>, <code>BED</code>, <code>TRUTH</code>, <code>THREADS</code>. Commands become shorter and typo-resistant.</li>
+        <li><code>~/workshop.env</code>, loaded at login, sets <code>SAMPLE</code>, <code>R1</code>, <code>R2</code>, <code>REF</code>, <code>BED</code>, <code>TRUTH</code>, <code>THREADS</code>, <code>BAM</code>. Commands are shorter and typo-resistant (done).</li>
         <li>After every step, a <code>check-step N</code> command confirms the expected output exists and looks right, with a plain explanation of any failure.</li>
         <li>A <code>catch-up N</code> command copies precomputed outputs, so nobody gets stuck behind a typo. This matters most before round 1, since rounds 2 and 3 reuse the same BAM.</li>
         <li>Keep a shared table on screen of each round's TP/FN/FP so the class sees the trend together.</li>
@@ -392,30 +344,31 @@ dependencies:
       <tr><td class="loc">ssh :22</td><td>Main command line</td><td>dovm <code>--login-user bioseq</code>; the conda env activates from <code>/etc/profile.d/ngs.sh</code></td></tr>
       <tr><td class="loc">/</td><td>Landing page</td><td>Links to reports, IGV, results and input data, plus the participant's VM address</td></tr>
       <tr><td class="loc">/files/</td><td>Browse <code>~/work</code>: fastqc, fastp, MultiQC, mosdepth outputs</td><td>Caddy <code>file_server browse</code>; HTML reports open in a new tab</td></tr>
-      <tr><td class="loc">/igv/</td><td>igv.js with hg38 and a file picker for BAM, VCF and BED in <code>~/work</code> and <code>~/data</code>, plus buttons for the teaching loci</td><td>Static page using igv.js; the file list comes from Caddy's JSON directory listing. Caddy serves HTTP range requests, which igv.js needs for indexed BAM and VCF.</td></tr>
+      <tr><td class="loc">/igv.html</td><td>igv.js with hg38 and a file picker for BAM, VCF and BED in <code>~/work</code> and <code>~/data</code>, plus buttons for the teaching loci</td><td>Static page using igv.js; the file list comes from Caddy's JSON directory listing. Caddy serves HTTP range requests, which igv.js needs for indexed BAM and VCF.</td></tr>
     </tbody>
   </table></div>
   <p class="prose muted">The whole portal sits behind basic auth with the same shared password. Plain HTTP is acceptable under this review's scope (short-lived VMs, synthetic data). Participants use Terminal (macOS/Linux) or PowerShell (Windows) for SSH, so there is no browser terminal.</p>
 
   <h3>Peek commands for each stage</h3>
+  <p class="prose muted">These are the "Look inside" boxes in <code>docs/index.html</code>.</p>
   <div class="tbl"><table>
     <thead><tr><th>Stage</th><th>What changes</th><th>Peek command</th></tr></thead>
     <tbody>
-      <tr><td><b class="mono">FASTQ</b></td><td>Raw reads with per-base quality</td><td><code>zcat $R1 | head -4</code> then decode one quality character with <code>printf '%d' "'I"</code> minus 33</td></tr>
+      <tr><td><b class="mono">FASTQ</b></td><td>Raw reads with per-base quality</td><td><code>zcat $R1 | head -4</code> then decode one quality character: <code>printf '%d\n' "'F"</code> prints 70, minus 33 = Q37</td></tr>
       <tr><td><b class="mono">fastqc</b></td><td>Nothing; QC only</td><td>Open <code>/files/qc/</code> in the portal and compare the fastqc and fastp reports</td></tr>
-      <tr><td><b class="mono">fastp</b></td><td>Adapters and low-quality tails trimmed</td><td><code>jq .summary qc/fastp.json</code> to compare reads and Q30 before and after</td></tr>
-      <tr><td><b class="mono">SAM</b></td><td>Each read gets a position, CIGAR and MAPQ</td><td><code>grep -v '^@' $SAMPLE.sam | head -2 | cut -f1-9</code></td></tr>
-      <tr><td><b class="mono">sorted BAM</b></td><td>Binary, ordered by position, indexed</td><td><code>ls -lh *.sam *.bam</code> to compare sizes; <code>samtools view $BAM chr12:25245350 | wc -l</code></td></tr>
-      <tr><td><b class="mono">sambamba markdup</b></td><td>PCR duplicates flagged with 0x400</td><td><code>samtools flagstat</code> before vs after</td></tr>
-      <tr><td><b class="mono">ABRA2</b></td><td>Reads near indels re-aligned</td><td>Open FBXW7 <code>chr4:152323003</code> on the portal's IGV page, dedup vs realigned BAM</td></tr>
-      <tr><td><b class="mono">coverage</b></td><td>Depth per target region</td><td><code>zcat qc/$SAMPLE.regions.bed.gz | sort -k5,5n | head</code> for the weakest targets; <code>qc/$SAMPLE.thresholds.bed.gz</code> for bases at ≥250×</td></tr>
+      <tr><td><b class="mono">fastp</b></td><td>Adapters and low-quality tails trimmed</td><td><code>jq .summary qc/$SAMPLE.fastp.json</code> to compare reads and Q30 before and after</td></tr>
+      <tr><td><b class="mono">SAM</b></td><td>Each read gets a position, CIGAR and MAPQ</td><td><code>grep -v '^@' $SAMPLE.sam | head -3 | cut -f1-9</code></td></tr>
+      <tr><td><b class="mono">sorted BAM</b></td><td>Binary, ordered by position, indexed</td><td><code>ls -lh $SAMPLE.sam $SAMPLE.*.bam</code> to compare sizes; <code>samtools view -c $SAMPLE.sorted.bam chr12:25245350</code></td></tr>
+      <tr><td><b class="mono">sambamba markdup</b></td><td>PCR duplicates flagged with 0x400</td><td><code>samtools flagstat $SAMPLE.dedup.bam</code></td></tr>
+      <tr><td><b class="mono">ABRA2</b></td><td>Reads near indels re-aligned</td><td>On the portal's IGV page, <b>FBXW7 frameshift</b>: <code>ngs_ws.dedup.bam</code> vs <code>ngs_ws.realigned.bam</code></td></tr>
+      <tr><td><b class="mono">coverage</b></td><td>Depth per target region</td><td><code>zcat qc/$SAMPLE.regions.bed.gz | sort -k5,5n | head -5</code> for the weakest targets</td></tr>
       <tr><td><b class="mono">MultiQC</b></td><td>All QC in one report</td><td>Open <code>/files/qc/multiqc/multiqc_report.html</code> in the portal</td></tr>
-      <tr><td><b class="mono">pileup</b></td><td>Per-base allele counts</td><td><code>samtools mpileup -r chr12:25245350-25245350 -f $REF $BAM</code> to count the G12D reads that round 1 throws away</td></tr>
-      <tr><td><b class="mono">VCF (VarScan)</b></td><td>Positions where evidence passes thresholds</td><td><code>bcftools query -f '%CHROM:%POS %REF&gt;%ALT [%FREQ]\n' r1.vcf.gz</code></td></tr>
-      <tr><td><b class="mono">FLT3 reads</b></td><td>The ITD shows up as soft clips, not an insertion</td><td><code>samtools view $BAM chr13:28033908 | awk '$6 ~ /S/' | wc -l</code>; in IGV, turn on "show soft-clipped bases"</td></tr>
-      <tr><td><b class="mono">VCF (VarDict)</b></td><td>Long insertion assembled from soft clips</td><td><code>bcftools view -H -r chr13:28033800-28034100 r3.vcf.gz | cut -f1-5 | cut -c1-80</code></td></tr>
-      <tr><td><b class="mono">annotated</b></td><td>Gene, HGVS, consequence, ACMG, ClinVar</td><td>fastVEP's tab output through <code>cut</code> on <code>SYMBOL</code>, <code>HGVSp</code>, <code>Consequence</code>, <code>ACMG</code>, <code>clinvar</code>, then <code>column -t</code></td></tr>
-      <tr><td><b class="mono">benchmark</b></td><td>Calls scored against the truth set</td><td><code>benchmark-vcf r2.vcf.gz</code> after each round; at the end <code>benchmark-vcf r1.vcf r2.vcf r3.vcf --html $WORK/qc/benchmark.html</code> and open it from the portal</td></tr>
+      <tr><td><b class="mono">VCF (VarScan)</b></td><td>Positions where evidence passes thresholds</td><td><code>bcftools query -f '%CHROM:%POS\t%REF&gt;%ALT\t[%FREQ]\n' r1.vcf.gz</code>; read counts behind BRAF V600E: <code>samtools mpileup -r chr7:140753336-140753336 -f $REF $BAM</code></td></tr>
+      <tr><td><b class="mono">annotated</b></td><td>Gene, consequence, HGVS, ClinVar</td><td><code>awk</code> over <code>r1.fastvep.tsv</code> picking <code>Location</code>, <code>SYMBOL</code>, <code>Consequence</code>, <code>HGVSp</code>, then <code>column -t</code>; <code>r1.fastvep.vcf</code> has the same in <code>CSQ</code></td></tr>
+      <tr><td><b class="mono">round 2</b></td><td>More calls at a lower cutoff</td><td><code>for f in r1.vcf.gz r2.vcf.gz; do echo "$f: $(bcftools view -H $f | wc -l) calls"; done</code></td></tr>
+      <tr><td><b class="mono">FLT3 reads</b></td><td>The ITD shows up as soft clips, not an insertion</td><td><code>samtools view $BAM chr13:28033800-28034200 | awk '$6 ~ /[0-9]+S/' | wc -l</code> vs <code>samtools view -c $BAM chr13:28033800-28034200</code>; in IGV, tick "Show soft-clipped bases"</td></tr>
+      <tr><td><b class="mono">VCF (VarDict)</b></td><td>Long insertion assembled from soft clips</td><td><code>bcftools view -H -r chr13:28033500-28034300 r3.vcf.gz | cut -f1-5 | cut -c1-120</code></td></tr>
+      <tr><td><b class="mono">benchmark</b></td><td>Calls scored against the truth set</td><td><code>benchmark-vcf rN.vcf.gz</code> after each round; at the end <code>benchmark-vcf r1.vcf.gz r2.vcf.gz r3.vcf.gz --html qc/benchmark.html</code> and open it from the portal</td></tr>
     </tbody>
   </table></div>
 
@@ -453,22 +406,22 @@ dependencies:
 <section>
   <h2>Roadmap</h2>
   <div>
-    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Get the content right</h3><ul><li>Revoke the ANNOVAR link, remove the ANNOVAR install, and purge the token from history (<code>git filter-repo</code>)</li><li>Rewrite the participant guide for GRCh38, the <code>ngs_ws_*</code> files and the three-round pipeline (done: <code>docs/index.html</code>, served with GitHub Pages)</li><li>Fix the truth VCF header (done by <code>build_image.sh</code>); merge FLT3 exons 13–15 in the BED (done)</li><li>Write <code>annotate-vcf</code> (fastVEP) and <code>benchmark-vcf</code> (bcftools, position-window match for the ITD)</li><li>Replace Mambaforge with Miniforge3; pin versions in a lock file (written by the first build)</li><li>Run all three rounds on a test VM and replace the predicted R1–R3 columns with the real results</li></ul></div></div>
-    <div class="phase"><div><div class="when">Phase 2</div></div><div><h3>Provision with dovm</h3><ul><li>Upload the indexed hg38 reference to the prep VM; <code>upload_and_build.sh</code> + <code>build_image.sh</code> for the conda env, fastVEP build and data, web portal, <code>/etc/skel</code> (written)</li><li>One snapshot with all assets; retire the NFS server</li><li><code>course.yaml</code> with 40 students and 2 spares, plus <code>check_vms.sh</code> (written)</li><li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output</li><li>Script dataset preparation; move binaries out of git</li></ul></div></div>
-    <div class="phase"><div><div class="when">Phase 3</div></div><div><h3>Improve the participant experience</h3><ul><li>Web portal on each VM: reports and igv.js page (written)</li><li><code>workshop.env</code>, <code>check-step</code>, <code>catch-up</code></li><li>Shared on-screen benchmark table across rounds</li><li>Optional clinical report generator</li></ul></div></div>
+    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Confirm the content</h3><ul><li>Run all three rounds on a test VM and replace the predicted R1–R3 columns with the real results</li></ul></div></div>
+    <div class="phase"><div><div class="when">Next</div></div><div><h3>Provisioning and data</h3><ul><li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output</li><li>Script dataset preparation (<code>make_workshop_data.sh</code>, including the FLT3 ITD reads)</li><li>Expand the top-level README</li></ul></div></div>
+    <div class="phase"><div><div class="when">Later</div></div><div><h3>Participant experience</h3><ul><li><code>check-step</code> and <code>catch-up</code> commands</li><li>Shared on-screen benchmark table across rounds</li><li>Optional clinical report generator</li></ul></div></div>
   </div>
-  <h3>Proposed repo layout</h3>
+  <h3>Repo layout</h3>
 <pre>ngs_bio_workshop/
 ├── README.md                          course overview, quick start per audience
-├── instructors/scripts/               written; see its README.md
-│   ├── dovm/prep.yaml, course.yaml
+├── instructors/scripts/               see its README.md
+│   ├── dovm/prep.yaml, course.yaml, course-test-one-user.yaml
 │   ├── upload_and_build.sh, snapshot.sh, check_vms.sh
 │   ├── build/build_image.sh, environment.yml, ngs-workshop.lock.txt
 │   ├── build/files/                   profile, workshop.env, Caddyfile, web/, bin/
-│   ├── data/ngs_data/                 FASTQ, BED, truth VCF
-│   └── archived_scripts/              old NFS/ANNOVAR setup
+│   └── data/ngs_data/                 FASTQ, BED, truth VCF
 ├── instructors/data_prep/             to do: make_workshop_data.sh (incl. FLT3 ITD reads)
-└── docs/index.html                   participant guide (GitHub Pages): three rounds, copy buttons, IGV tasks</pre>
+├── docs/index.html                    participant guide (GitHub Pages): three rounds, copy buttons, IGV tasks
+└── participants/testing_the_guide.html  how to preview and publish the guide</pre>
 </section>
 
 </div>

@@ -18,7 +18,7 @@ files in igv.js, so nobody needs `scp` or a desktop IGV install.
 
 Run every command below from this directory (`instructors/scripts`). `dovm` writes droplet IPs to `output/` folder, which the other scripts read from.
 
-## 1. Build the image (once per course, about an 25 minutes to an hour)
+## 1. Build the image (once per course, about 25 minutes to an hour)
 
 ```sh
 dovm create dovm/prep.yaml

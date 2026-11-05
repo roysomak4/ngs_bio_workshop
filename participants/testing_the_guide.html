@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testing the Guide</title>
+<meta name="description" content="How to preview the participant guide locally, test it against a workshop VM, and publish it with GitHub Pages.">
+<style>
+/* Layout: single ~72ch reading column; same tokens and theme toggle as the participant guide */
+:root {
+  --bg: #f7f8f6; --surface: #ffffff; --fg: #1b2420; --muted: #5d6b64; --line: #e1e6e3;
+  --code-bg: #f0f3f1; --accent: #1f6f5c; --accent-soft: #e2f0ea; --warn-bg: #fdf3df;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+    --code-bg: #1d2622; --accent: #5fc3a6; --accent-soft: #1b3a31; --warn-bg: #2e2715;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+  --code-bg: #1d2622; --accent: #5fc3a6; --accent-soft: #1b3a31; --warn-bg: #2e2715;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans);
+  padding: 40px max(16px, env(safe-area-inset-left)) 80px; }
+main { max-width: 72ch; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+section { display: flex; flex-direction: column; gap: 14px; }
+h1 { margin: 0; font-size: clamp(1.8rem, 4.5vw, 2.4rem); line-height: 1.15; letter-spacing: -.015em; }
+h2 { margin: 0; font-size: 1.35rem; line-height: 1.25; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { margin: 0; font-size: 1.05rem; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lede { font-size: 1.1rem; color: var(--muted); }
+code, pre { font-family: var(--mono); font-size: .86em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.5; }
+.note { border-radius: 8px; padding: 12px 14px; font-size: .95rem; background: var(--accent-soft); }
+.note.warn { background: var(--warn-bg); }
+.note b:first-child { display: block; font: 600 .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.tbl { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+.theme-toggle { position: fixed; top: 12px; right: 12px; z-index: 20; font: 600 .8rem system-ui, sans-serif; padding: 5px 11px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--fg); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--accent); }
+</style>
+<script>try{var t=localStorage.getItem("ngs-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<button type="button" class="theme-toggle" id="theme-toggle"></button>
+<main>
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <h1>Testing the participant guide</h1>
+  <p class="lede">How to preview <code>docs/index.html</code> on your laptop, check it end to end against a workshop VM, and publish it with GitHub Pages. No merge to <code>main</code> is needed for any of it.</p>
+</header>
+
+<section>
+  <h2>1. Preview the guide with Live Server</h2>
+  <p><code>docs/index.html</code> is a single self-contained file. It loads nothing external; the only outside URLs it builds are the <b>View</b> links to a VM. In VS Code, right-click the file and choose <b>Open with Live Server</b>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Feature</th><th>How to check it</th></tr></thead>
+    <tbody>
+      <tr><td>Copy buttons</td><td>Click <b>Copy</b> and paste somewhere. They work on Live Server because <code>127.0.0.1</code> counts as a secure origin for the clipboard API.</td></tr>
+      <tr><td>Done ticks and progress bar</td><td>Tick a few steps and reload. They are saved in this browser's localStorage.</td></tr>
+      <tr><td>Theme toggle</td><td>Switch light/dark and reload; the choice is remembered.</td></tr>
+      <tr><td>VM IP box</td><td>Type an IP at the top, or open the page with <code>?ip=&lt;vm-ip&gt;</code>. Every <b>View</b> link then points to <code>http://&lt;vm-ip&gt;/…</code>, and the <code>ssh</code> command shows the IP.</td></tr>
+      <tr><td>Phone layout</td><td>Narrow the window: the sidebar turns into a row of step buttons.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>2. Test the full flow against a VM</h2>
+  <p>igv.js is not part of the guide. The IGV page (<code>instructors/scripts/build/files/web/igv.html</code>) and the QC reports are served by Caddy on each VM. The guide only links to them, so they need a running VM.</p>
+  <ol>
+    <li>From <code>instructors/scripts</code>, start the one-user test VM:
+<pre>dovm create dovm/course-test-one-user.yaml --login-user bioseq --login-password-file pw.txt</pre></li>
+    <li>Open the guide on Live Server and enter that VM's IP in the box at the top.</li>
+    <li>Run a few pipeline steps over SSH, then click the <b>View</b> links: fastqc, MultiQC, the benchmark report and IGV all load from the VM (log in as <code>bioseq</code> with the shared password).</li>
+    <li>On the IGV page, check the file list, the <b>Jump to</b> buttons and the soft-clips toggle at the FLT3 ITD.</li>
+    <li>Tear it down when finished:
+<pre>dovm destroy dovm/course-test-one-user.yaml</pre></li>
+  </ol>
+  <div class="note warn"><b>Don't</b>open <code>igv.html</code> itself on Live Server. Its file list comes from the VM's <code>/files/</code> and <code>/data/</code> folders behind basic auth, so locally it shows the genome and nothing else.</div>
+</section>
+
+<section>
+  <h2>3. Publish with GitHub Pages</h2>
+  <p>The guide lives in <code>docs/</code> because Pages, when it publishes straight from a branch, can only use the repo root or the <code>/docs</code> folder. The repo is public, so Pages is free.</p>
+  <ol>
+    <li>Push the branch that holds the version you want to publish (e.g. <code>2026-upgrade</code>).</li>
+    <li>In GitHub: <b>Settings → Pages → Build and deployment → Source: Deploy from a branch</b>, then pick that branch and the <code>/docs</code> folder.</li>
+    <li>After a minute or two the guide is live at <code>https://roysomak4.github.io/ngs_bio_workshop/</code>. Each push to that branch republishes it.</li>
+  </ol>
+  <p>Any branch works, so you can test before merging and switch the source to <code>main</code> afterwards. Only one Pages site exists per repo, so switching the branch replaces what is live.</p>
+  <div class="note"><b>Mixed content is fine</b>The Pages site is HTTPS and the VMs are plain HTTP, but the <b>View</b> links open the VM in a new tab rather than embedding it. Browsers only block HTTP content loaded inside an HTTPS page.</div>
+  <div class="note"><b>Handing out links</b>Append <code>?ip=&lt;vm-ip&gt;</code> to the Pages URL to give each participant a link with their VM already filled in, e.g. <code>https://roysomak4.github.io/ngs_bio_workshop/?ip=203.0.113.10</code>.</div>
+</section>
+
+</main>
+<script>
+(function () {
+  // Light/dark toggle: follows the OS until clicked, then remembers the choice.
+  var root = document.documentElement, btn = document.getElementById("theme-toggle");
+  var media = matchMedia("(prefers-color-scheme: dark)");
+  function dark() { return root.dataset.theme ? root.dataset.theme === "dark" : media.matches; }
+  function label() {
+    var d = dark();
+    btn.textContent = d ? "☀ Light" : "☾ Dark";
+    btn.setAttribute("aria-label", d ? "Switch to light theme" : "Switch to dark theme");
+  }
+  btn.addEventListener("click", function () {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("ngs-theme", root.dataset.theme); } catch (e) {}
+    label();
+  });
+  media.addEventListener("change", label);
+  label();
+})();
+</script>
+</body>
+</html>
