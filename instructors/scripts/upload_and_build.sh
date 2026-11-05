@@ -53,7 +53,8 @@ rsync -av -e "$ssh_cmd" \
   "$data/ngs_ws_R1.fastq.gz" "$data/ngs_ws_R2.fastq.gz" \
   "$data/ngs_ws_roi_sorted.bed" "$data/ngs_ws_truth_vars.vcf" \
   "root@$ip:/root/ngs-build/data/"
-rsync -e "$ssh_cmd" --chmod=600 "$pwfile" "root@$ip:/root/ngs-build/portal_password"
+# Not rsync --chmod: macOS ships openrsync, which rejects numeric modes.
+ssh "${ssh_opts[@]}" "root@$ip" 'umask 077 && cat >/root/ngs-build/portal_password' <"$pwfile"
 
 echo "==> Running build_image.sh (log on the droplet: /var/log/ngs-image-build.log)"
 ssh "${ssh_opts[@]}" "root@$ip" 'chmod +x /root/ngs-build/build_image.sh && /root/ngs-build/build_image.sh'

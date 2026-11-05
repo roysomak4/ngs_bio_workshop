@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Score VCFs of variant calls against the workshop truth set.
+
+    benchmark-vcf <calls.vcf[.gz]> [more.vcf ...] [--html FILE] [--labels A,B,C]
+                  [--truth FILE] [--bed FILE] [--ref FILE]
+
+Prints a found/missed table for each VCF. With --html, also writes one
+self-contained report comparing all the VCFs side by side, e.g.
+
+    benchmark-vcf r1.vcf r2.vcf r3.vcf --html ~/work/qc/benchmark.html
+
+All files are left-normalised with bcftools first. SNVs and short indels then
+count as found only if CHROM, POS, REF and ALT all match. Long insertions such
+as the FLT3 ITD match any long insertion on the same chromosome within one
+insertion length, because a tandem duplication can be written at many
+equivalent positions.
+"""
+import argparse
+import datetime
+import html
+import os
+import shlex
+import subprocess
+import sys
+
+LONG_INS = 50  # bp; insertions at least this long are matched by position window
+LOW_VAF = 0.05  # truth variants below this are highlighted as hard to detect
+
+
+def run(cmd):
+    print("+ " + shlex.join(cmd), file=sys.stderr)
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        sys.exit(f"command failed:\n{res.stderr}")
+    return res.stdout
+
+
+def sample_value(fmt, sample, key):
+    keys = fmt.split(":")
+    vals = sample.split(":")
+    if key in keys and keys.index(key) < len(vals):
+        return vals[keys.index(key)]
+    return None
+
+
+def vaf_of(info, fmt, sample):
+    """Observed VAF from VarDict (FORMAT/AF), VarScan (FORMAT/FREQ) or truth (INFO/HIAF)."""
+    if fmt and sample:
+        af = sample_value(fmt, sample, "AF")
+        if af not in (None, "."):
+            return float(af.split(",")[0])
+        freq = sample_value(fmt, sample, "FREQ")
+        if freq not in (None, "."):
+            return float(freq.rstrip("%")) / 100
+    hiaf = info.get("HIAF")
+    return float(hiaf) if hiaf not in (None, ".") else None
+
+
+def parse(vcf_text):
+    """Return (records, caller) for a normalised VCF."""
+    records, caller = [], None
+    for line in vcf_text.splitlines():
+        if line.startswith("##source=") and caller is None:
+            caller = line.split("=", 1)[1]
+        if line.startswith("#"):
+            continue
+        f = line.split("\t")
+        chrom, pos, ref, alt, info_s = f[0], int(f[1]), f[3], f[4], f[7]
+        info = dict(kv.split("=", 1) if "=" in kv else (kv, True) for kv in info_s.split(";"))
+        if alt.startswith("<"):
+            svlen = info.get("SVLEN")
+            ins_len = abs(int(svlen)) if svlen else int(info.get("END", pos)) - pos
+        else:
+            ins_len = len(alt) - len(ref)
+        records.append({
+            "chrom": chrom, "pos": pos, "ref": ref, "alt": alt, "ins_len": ins_len,
+            "gene": info.get("GENE", "."),
+            "vaf": vaf_of(info, f[8] if len(f) > 9 else None, f[9] if len(f) > 9 else None),
+        })
+    return records, caller
+
+
+def load_bed(path):
+    regions = {}
+    with open(path) as fh:
+        for line in fh:
+            if line.strip() and not line.startswith(("#", "track", "browser")):
+                c, s, e = line.split("\t")[:3]
+                regions.setdefault(c, []).append((int(s), int(e)))
+    return regions
+
+
+def in_bed(regions, chrom, pos):
+    return any(s < pos <= e for s, e in regions.get(chrom, []))
+
+
+def score(truth, calls):
+    """Match calls to truth. Returns (one call-or-None per truth variant, false positives)."""
+    matched, hits = set(), []
+    for t in truth:
+        hit = None
+        for i, c in enumerate(calls):
+            if c["chrom"] != t["chrom"]:
+                continue
+            if t["ins_len"] >= LONG_INS:
+                ok = c["ins_len"] >= LONG_INS // 2 and abs(c["pos"] - t["pos"]) <= t["ins_len"] + 10
+            else:
+                ok = (c["pos"], c["ref"], c["alt"]) == (t["pos"], t["ref"], t["alt"])
+            if ok:
+                hit = i
+                break
+        if hit is not None:
+            matched.add(hit)
+        hits.append(calls[hit] if hit is not None else None)
+    return hits, [c for i, c in enumerate(calls) if i not in matched]
+
+
+def change(r):
+    if r["ins_len"] >= LONG_INS:
+        return f"{r['ref'][:1]}>+{r['ins_len']} bp ins"
+    return f"{r['ref']}>{r['alt']}"
+
+
+def pct(v):
+    return f"{v * 100:.1f}%" if v is not None else "-"
+
+
+def locus(r):
+    pad = max(20, r["ins_len"] + 50) if r["ins_len"] >= LONG_INS else 20
+    return f"{r['chrom']}:{max(1, r['pos'] - pad)}-{r['pos'] + pad}"
+
+
+def print_round(name, truth, hits, fps, ncalls):
+    print(f"\n== {name} ==")
+    print(f"{'GENE':<8} {'POSITION':<16} {'CHANGE':<18} {'EXPECTED':>8} {'OBSERVED':>8}  RESULT")
+    for t, c in zip(truth, hits):
+        print(f"{t['gene']:<8} {t['chrom'] + ':' + str(t['pos']):<16} {change(t):<18} "
+              f"{pct(t['vaf']):>8} {pct(c['vaf'] if c else None):>8}  {'found' if c else 'MISSED'}")
+    tp = sum(1 for c in hits if c)
+    print(f"\nFound {tp} of {len(truth)} truth variants (sensitivity {tp / len(truth):.0%}).")
+    if ncalls:
+        print(f"{len(fps)} of {ncalls} calls in the targets are not in the truth set "
+              f"(precision {(ncalls - len(fps)) / ncalls:.0%}).")
+    if fps:
+        print("\nCalls not in the truth set:")
+        for c in fps[:15]:
+            print(f"  {c['chrom']}:{c['pos']} {change(c)} observed {pct(c['vaf'])}")
+        if len(fps) > 15:
+            print(f"  ... and {len(fps) - 15} more")
+
+
+CSS = """
+:root { --bg: #f7f8f6; --card: #fff; --fg: #1b2420; --muted: #5d6b64; --line: #e1e6e3;
+  --accent: #1f6f5c; --found: #1a7f45; --found-bg: #e3f3e9; --miss: #b3261e; --miss-bg: #fbe9e7;
+  --hard: #fdf3df; --bar: #e1e6e3; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111614; --card: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+    --accent: #5fc3a6; --found: #6fd69a; --found-bg: #173326; --miss: #ff8a80; --miss-bg: #3a1c1a;
+    --hard: #2e2715; --bar: #29332e;  color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111614; --card: #18201c; --fg: #e3ebe7; --muted: #9aa8a1; --line: #29332e;
+    --accent: #5fc3a6; --found: #6fd69a; --found-bg: #173326; --miss: #ff8a80; --miss-bg: #3a1c1a;
+    --hard: #2e2715; --bar: #29332e;  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 40px 16px 64px; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+main > * { min-width: 0; }
+h1 { margin: 0; font-size: 1.7rem; letter-spacing: -.01em; }
+h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.meta { color: var(--muted); font-size: .9rem; }
+code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card .label { font-weight: 600; }
+.card .file { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.big { font-size: 2rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.big small { font-size: .95rem; font-weight: 500; color: var(--muted); }
+.bar { height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--accent); }
+.stats { display: flex; gap: 16px; font-size: .88rem; color: var(--muted); }
+.stats b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.tbl { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+tr.hard td:not(.res) { background: var(--hard); }
+td.res { text-align: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px;
+  font-size: .82rem; font-variant-numeric: tabular-nums; }
+.pill.found { color: var(--found); background: var(--found-bg); }
+.pill.miss { color: var(--miss); background: var(--miss-bg); }
+.new { font-size: .68rem; font-weight: 700; letter-spacing: .05em; color: var(--accent); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+details + details { margin-top: 8px; }
+summary { cursor: pointer; font-weight: 600; }
+details table { margin-top: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: .85rem; align-items: center; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--hard);
+  border: 1px solid var(--line); vertical-align: -2px; margin-right: 6px; }
+footer { color: var(--muted); font-size: .85rem; }
+.theme-toggle { font: 600 .8rem system-ui, sans-serif; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); cursor: pointer; }
+.theme-toggle:hover { border-color: var(--accent); }
+.theme-toggle { position: fixed; top: 12px; right: 12px; z-index: 20; }
+"""
+
+THEME_HEAD = '<script>try{var t=localStorage.getItem("ngs-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>'
+THEME_BUTTON = '<button type="button" class="theme-toggle" id="theme-toggle"></button>'
+THEME_JS = '<script>\n(function () {\n  // Light/dark toggle: follows the OS until clicked, then remembers the choice.\n  var root = document.documentElement, btn = document.getElementById("theme-toggle");\n  var media = matchMedia("(prefers-color-scheme: dark)");\n  function dark() { return root.dataset.theme ? root.dataset.theme === "dark" : media.matches; }\n  function label() {\n    var d = dark();\n    btn.textContent = d ? "\\u2600 Light" : "\\u263E Dark";\n    btn.setAttribute("aria-label", d ? "Switch to light theme" : "Switch to dark theme");\n  }\n  btn.addEventListener("click", function () {\n    root.dataset.theme = dark() ? "light" : "dark";\n    try { localStorage.setItem("ngs-theme", root.dataset.theme); } catch (e) {}\n    label();\n    document.dispatchEvent(new CustomEvent("themechange"));\n  });\n  media.addEventListener("change", label);\n  label();\n})();\n</script>\n'
+
+
+def render_html(rounds, truth, sample):
+    e = html.escape
+    n = len(truth)
+    out = []
+    w = out.append
+    w("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
+      "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+      f"<title>Benchmark · {e(sample)}</title><style>{CSS}</style>{THEME_HEAD}</head>"
+      f"<body>{THEME_BUTTON}<main>")
+    w(f"<header><h1>Benchmark against the truth set</h1><p class='meta'>Sample <b>{e(sample)}</b> · "
+      f"{n} truth variants · {datetime.datetime.now():%d %b %Y, %H:%M}</p></header>")
+
+    w("<section class='cards'>")
+    for r in rounds:
+        tp = sum(1 for c in r["hits"] if c)
+        ncalls = r["ncalls"]
+        prec = f"{(ncalls - len(r['fps'])) / ncalls:.0%}" if ncalls else "-"
+        caller = f" · {e(r['caller'])}" if r["caller"] else ""
+        w(f"<div class='card'><span class='label'>{e(r['label'])}</span>"
+          f"<span class='file mono'>{e(r['file'])}{caller}</span>"
+          f"<span class='big'>{tp}<small> / {n} found</small></span>"
+          f"<div class='bar'><span style='width:{tp / n * 100:.0f}%'></span></div>"
+          f"<div class='stats'><span>Sensitivity <b>{tp / n:.0%}</b></span>"
+          f"<span>False pos. <b>{len(r['fps'])}</b></span><span>Precision <b>{prec}</b></span></div></div>")
+    w("</section>")
+
+    w("<section><h2>Truth variants</h2><div class='tbl'><table><thead><tr>"
+      "<th>Gene</th><th>Position</th><th>Change</th><th class='num'>Expected</th>")
+    for r in rounds:
+        w(f"<th class='res'>{e(r['label'])}</th>")
+    w("</tr></thead><tbody>")
+    for i, t in enumerate(truth):
+        hard = t["ins_len"] >= LONG_INS or (t["vaf"] is not None and t["vaf"] < LOW_VAF)
+        w(f"<tr class='{'hard' if hard else ''}'><td>{e(t['gene'])}</td>"
+          f"<td class='mono'><a href='/igv.html?locus={e(locus(t))}' title='Open in IGV'>"
+          f"{e(t['chrom'])}:{t['pos']}</a></td><td class='mono'>{e(change(t))}</td>"
+          f"<td class='num'>{pct(t['vaf'])}</td>")
+        prev = None
+        for r in rounds:
+            c = r["hits"][i]
+            new = " <span class='new'>NEW</span>" if c and prev is not None and not prev else ""
+            cell = (f"<span class='pill found'>✓ {pct(c['vaf'])}</span>{new}" if c
+                    else "<span class='pill miss'>missed</span>")
+            w(f"<td class='res'>{cell}</td>")
+            prev = c is not None
+        w("</tr>")
+    w("</tbody></table></div>")
+    w(f"<p class='legend' style='margin-top:10px'><span><span class='swatch'></span>Hard to detect: "
+      f"expected VAF below {LOW_VAF:.0%}, or an insertion longer than {LONG_INS} bp</span>"
+      "<span><span class='new'>NEW</span> found in this round but not the one before</span>"
+      "<span>Click a position to open it in IGV</span></p></section>")
+
+    w("<section><h2>Calls not in the truth set</h2>")
+    for r in rounds:
+        fps = r["fps"]
+        w(f"<details><summary>{e(r['label'])}: {len(fps)} call{'s' if len(fps) != 1 else ''}</summary>")
+        if fps:
+            w("<table><thead><tr><th>Position</th><th>Change</th><th class='num'>Observed VAF</th>"
+              "</tr></thead><tbody>")
+            for c in fps:
+                w(f"<tr><td class='mono'><a href='/igv.html?locus={e(locus(c))}'>{e(c['chrom'])}:{c['pos']}</a>"
+                  f"</td><td class='mono'>{e(change(c))}</td><td class='num'>{pct(c['vaf'])}</td></tr>")
+            w("</tbody></table>")
+        w("</details>")
+    w("</section>")
+
+    w("<footer>Calls outside the target BED are ignored. SNVs and short indels must match position, REF "
+      "and ALT after left-normalisation. Insertions of 50 bp or more match any long insertion within one "
+      "insertion length, since a tandem duplication can be written at several equivalent positions. "
+      "Generated by <code>benchmark-vcf</code>.</footer></main>" + THEME_JS + "</body></html>")
+    return "".join(out)
+
+
+def main():
+    home = os.path.expanduser("~")
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("calls", nargs="+")
+    p.add_argument("--html", help="write a report comparing all VCFs to this file")
+    p.add_argument("--labels", help="comma-separated names for the VCFs (default: Round 1, Round 2, ...)")
+    p.add_argument("--truth", default=os.environ.get("TRUTH", f"{home}/data/ngs_ws_truth_vars.vcf.gz"))
+    p.add_argument("--bed", default=os.environ.get("BED", f"{home}/data/ngs_ws_roi_sorted.bed"))
+    p.add_argument("--ref", default=os.environ.get("REF") or os.environ.get("NGS_REF"))
+    a = p.parse_args()
+    if not a.ref:
+        sys.exit("reference not set: source ~/workshop.env or pass --ref")
+    labels = a.labels.split(",") if a.labels else [f"Round {i + 1}" for i in range(len(a.calls))]
+    if len(labels) != len(a.calls):
+        sys.exit(f"--labels has {len(labels)} names for {len(a.calls)} VCFs")
+
+    norm = ["bcftools", "norm", "-f", a.ref, "-m", "-any", "--check-ref", "w"]
+    truth, _ = parse(run(norm + [a.truth]))
+    regions = load_bed(a.bed)
+
+    rounds = []
+    for label, path in zip(labels, a.calls):
+        records, caller = parse(run(norm + [path]))
+        calls = [c for c in records if in_bed(regions, c["chrom"], c["pos"])]
+        hits, fps = score(truth, calls)
+        print_round(f"{label}: {path}", truth, hits, fps, len(calls))
+        rounds.append({"label": label, "file": os.path.basename(path), "caller": caller,
+                       "hits": hits, "fps": fps, "ncalls": len(calls)})
+
+    if a.html:
+        sample = os.environ.get("SAMPLE", "sample")
+        os.makedirs(os.path.dirname(os.path.abspath(a.html)), exist_ok=True)
+        with open(a.html, "w") as fh:
+            fh.write(render_html(rounds, truth, sample))
+        print(f"\nWrote {a.html}. Open it from the portal: QC reports.")
+
+
+if __name__ == "__main__":
+    main()

@@ -28,6 +28,11 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 finalize() {
   step "Finalizing for snapshot"
+  # cloud-init skips a login user that already exists, so a baked-in account
+  # would keep its empty home on every student VM.
+  if id "$LOGIN_USER" >/dev/null 2>&1; then
+    die "user $LOGIN_USER exists on this droplet; remove it first: userdel -r $LOGIN_USER"
+  fi
   rm -rf /tmp/* "$BUILD_DIR"
   "$CONDA" clean -afy >/dev/null
   apt-get clean
@@ -125,8 +130,15 @@ install_fastvep_data() {
     curl -fL -o "$tmp/clinvar.vcf.gz" https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz
     # ClinVar uses bare contig names. fastVEP documents chr aliasing for gene
     # models but not for supplementary databases, so match the workshop's chr names.
-    { for c in {1..22} X Y; do echo "$c chr$c"; done; echo "MT chrM"; } >"$tmp/chrs.txt"
-    "$ENV_BIN/bcftools" annotate --rename-chrs "$tmp/chrs.txt" -Oz -o "$tmp/clinvar.chr.vcf.gz" "$tmp/clinvar.vcf.gz"
+    # Renamed as text: ClinVar's header has no ##contig lines, so bcftools
+    # annotate --rename-chrs has nothing to rename and stops at the first record.
+    zcat "$tmp/clinvar.vcf.gz" |
+      awk 'BEGIN { FS = OFS = "\t" }
+        /^#/ { print; next }
+        $1 ~ /^([1-9]|1[0-9]|2[0-2]|X|Y)$/ { $1 = "chr" $1 }
+        $1 == "MT" { $1 = "chrM" }
+        { print }' |
+      "$ENV_BIN/bgzip" -c >"$tmp/clinvar.chr.vcf.gz"
     "$ENV_BIN/fastvep" sa-build --source clinvar -i "$tmp/clinvar.chr.vcf.gz" \
       -o "$FASTVEP_DIR/sa/clinvar" --assembly GRCh38
     "$ENV_BIN/bcftools" view -h "$tmp/clinvar.vcf.gz" | grep -m1 '^##fileDate' >"$FASTVEP_DIR/sa/clinvar.release.txt" || true
@@ -178,7 +190,7 @@ warm_fastvep_cache() {
   # then confirm an unprivileged user can annotate with the read-only data.
   local tmp out
   tmp=$(mktemp -d)
-  chmod 755 "$tmp"
+  chown nobody "$tmp"
   "$ENV_BIN/fastvep" annotate -i /etc/skel/data/ngs_ws_truth_vars.vcf.gz -o "$tmp/root.vcf" \
     --gff3 "$GFF3" --fasta "$REF" --hgvs
   out=$(runuser -u nobody -- bash -c ". /etc/profile.d/ngs.sh && cd $tmp && annotate-vcf /etc/skel/data/ngs_ws_truth_vars.vcf.gz user 2>&1") ||

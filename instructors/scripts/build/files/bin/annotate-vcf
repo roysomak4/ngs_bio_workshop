@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Annotate a VCF with fastVEP using the workshop's GRCh38 gene models.
+#
+#   annotate-vcf <calls.vcf[.gz]> [output_prefix]
+#
+# Writes <prefix>.fastvep.vcf (consequences in the CSQ INFO field) and
+# <prefix>.fastvep.tsv (one row per variant and transcript). Each fastVEP
+# command is printed before it runs, so you can see exactly what was called.
+set -euo pipefail
+
+in=${1:?usage: annotate-vcf <calls.vcf[.gz]> [output_prefix]}
+prefix=${2:-$(basename "${in%.gz}" .vcf)}
+: "${FASTVEP_GFF3:?not set; log out and back in, or run: source /etc/profile.d/ngs.sh}"
+: "${NGS_REF:?not set; log out and back in, or run: source /etc/profile.d/ngs.sh}"
+
+sa=()
+if compgen -G "${FASTVEP_SA_DIR:-/nonexistent}/*" >/dev/null; then
+  sa=(--sa-dir "$FASTVEP_SA_DIR")
+fi
+
+run() {
+  printf '+ %s\n' "$*" >&2
+  "$@"
+}
+
+run fastvep annotate -i "$in" -o "$prefix.fastvep.vcf" \
+  --gff3 "$FASTVEP_GFF3" --fasta "$NGS_REF" "${sa[@]}" --hgvs
+run fastvep annotate -i "$in" -o "$prefix.fastvep.tsv" \
+  --gff3 "$FASTVEP_GFF3" --fasta "$NGS_REF" "${sa[@]}" --hgvs --symbol --output-format tab
+
+echo "Wrote $prefix.fastvep.vcf and $prefix.fastvep.tsv" >&2

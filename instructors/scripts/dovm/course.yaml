@@ -5,7 +5,7 @@
 # dovm validate rejects the placeholder, so a forgotten edit fails before anything is created.
 name: ngs-course-2026
 region: nyc3                # must be a region that holds the snapshot
-image: REPLACE_WITH_SNAPSHOT_ID
+image: 253068476
 ssh_keys:
   - "51842390"
 monitoring: true

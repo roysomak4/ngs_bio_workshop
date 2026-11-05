@@ -7,7 +7,7 @@ __pycache__/
 
 # Distribution / packaging
 node_modules/
-bin/
+/bin/
 build/manifest.json
 develop-eggs/
 dist/

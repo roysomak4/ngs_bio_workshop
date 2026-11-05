@@ -11,5 +11,5 @@ monitoring: true
 project: AMP 2026 NGS bioinformatics bootcamp
 roles:
   prep:
-    size: s-4vcpu-8gb-240gb-intel
+    size: s-4vcpu-8gb
     hosts: [prep-vm]

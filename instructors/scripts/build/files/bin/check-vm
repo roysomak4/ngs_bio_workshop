@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Smoke test for a workshop VM. Run as root.
+#
+#   check-vm          tools, reference, data, portal, participant account
+#   check-vm --full   also runs a small end-to-end pipeline on 10,000 read pairs
+#
+# Exits non-zero if any check fails.
+. /etc/profile.d/ngs.sh
+set -o pipefail
+
+LOGIN_USER=${LOGIN_USER:-bioseq}
+SKEL=/etc/skel
+fail=0
+
+ok() { printf '  ok    %s\n' "$1"; }
+bad() { printf '  FAIL  %s\n' "$1"; fail=1; }
+check() {
+  local desc=$1
+  shift
+  if "$@" >/dev/null 2>&1; then ok "$desc"; else bad "$desc"; fi
+}
+
+echo "Tools"
+for t in fastqc fastp bwa samtools bgzip tabix bcftools sambamba abra2 varscan vardict-java \
+  teststrandbias.R var2vcf_valid.pl mosdepth multiqc fastvep jq annotate-vcf benchmark-vcf; do
+  check "$t" command -v "$t"
+done
+
+echo "Reference and annotation data"
+check "FASTA $NGS_REF" test -s "$NGS_REF"
+for ext in fai amb ann bwt pac sa; do
+  check "  .$ext" test -s "$NGS_REF.$ext"
+done
+check "fastVEP GFF3 $FASTVEP_GFF3" test -s "$FASTVEP_GFF3"
+
+echo "Workshop data in $SKEL"
+for f in data/ngs_ws_R1.fastq.gz data/ngs_ws_R2.fastq.gz data/ngs_ws_roi_sorted.bed \
+  data/ngs_ws_truth_vars.vcf.gz data/ngs_ws_truth_vars.vcf.gz.tbi workshop.env; do
+  check "$f" test -s "$SKEL/$f"
+done
+
+echo "Web portal"
+check "caddy is running" systemctl is-active --quiet caddy
+check "portal asks for a password" \
+  test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)" = 401
+
+if id "$LOGIN_USER" >/dev/null 2>&1; then
+  home=$(getent passwd "$LOGIN_USER" | cut -d: -f6)
+  echo "Participant account $LOGIN_USER"
+  check "data copied to $home/data" test -s "$home/data/ngs_ws_R1.fastq.gz"
+  check "web server can read $home/work" runuser -u caddy -- test -r "$home/work" -a -x "$home/work"
+  check "tools and variables load at login" \
+    runuser -l "$LOGIN_USER" -c 'command -v bwa && command -v fastvep && test -n "$REF" && test -s "$BED"'
+else
+  echo "Participant account $LOGIN_USER: not created yet (expected on the prep VM)"
+fi
+
+if [[ ${1:-} == --full ]]; then
+  echo "Mini pipeline (10,000 read pairs)"
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  bed=$SKEL/data/ngs_ws_roi_sorted.bed
+  (
+    set -e
+    cd "$tmp"
+    # zcat dies of SIGPIPE once head has enough lines; don't let pipefail abort on that.
+    { zcat "$SKEL/data/ngs_ws_R1.fastq.gz" || true; } | head -n 40000 >r1.fq
+    { zcat "$SKEL/data/ngs_ws_R2.fastq.gz" || true; } | head -n 40000 >r2.fq
+    test -s r1.fq && test -s r2.fq
+    fastqc -q -o . r1.fq r2.fq
+    fastp -i r1.fq -I r2.fq -o t1.fq -O t2.fq -w 4 -j fastp.json -h fastp.html 2>/dev/null
+    bwa mem -t 4 -R '@RG\tID:t\tSM:t\tPL:ILLUMINA' "$NGS_REF" t1.fq t2.fq 2>/dev/null >t.sam
+    samtools sort -@ 4 -o t.sorted.bam t.sam && samtools index t.sorted.bam
+    sambamba markdup -t 4 t.sorted.bam t.dedup.bam 2>markdup.log
+    abra2 --in t.dedup.bam --out t.bam --ref "$NGS_REF" --targets "$bed" --threads 4 --tmpdir . >abra.log 2>&1
+    samtools index t.bam
+    mosdepth -t 4 -n -b "$bed" t t.bam
+    samtools mpileup -B -q 20 -Q 30 -d 4000 -l "$bed" -f "$NGS_REF" t.bam 2>/dev/null |
+      varscan mpileup2vcf --min-var-freq 0.02 --output-vcf 1 --variants >varscan.vcf 2>/dev/null
+    vardict-java -G "$NGS_REF" -N t -b t.bam -f 0.02 -c 1 -S 2 -E 3 -g 4 -th 4 "$bed" 2>/dev/null |
+      teststrandbias.R | var2vcf_valid.pl -N t -E -f 0.02 >vardict.vcf
+    annotate-vcf varscan.vcf varscan 2>/dev/null
+    multiqc -q -o mq . 2>/dev/null
+  ) >"$tmp.log" 2>&1
+  check "pipeline ran without errors (log: $tmp.log)" test -s "$tmp/mq/multiqc_report.html"
+  check "reads aligned" test "$(samtools view -c -F 4 "$tmp/t.bam" 2>/dev/null)" -gt 0
+  check "mosdepth wrote region depths" test -s "$tmp/t.regions.bed.gz"
+  check "VarScan wrote a VCF" grep -q '^#CHROM' "$tmp/varscan.vcf"
+  check "VarDict wrote a VCF" grep -q '^#CHROM' "$tmp/vardict.vcf"
+  check "fastVEP annotated the calls" grep -q '^##INFO=<ID=CSQ' "$tmp/varscan.fastvep.vcf"
+fi
+
+if ((fail)); then echo "RESULT: FAIL"; else echo "RESULT: PASS"; fi
+exit "$fail"
