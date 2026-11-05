@@ -1,28 +1,24 @@
 # Workshop VM setup
 
-One DigitalOcean droplet per participant, all created from a single pre-built
-snapshot. Participants run every pipeline step by pasting commands into an SSH
+The training workshop will deploy one DigitalOcean droplet per participant, all of which are created from a single pre-built
+snapshot (saved in Digitalocean). Participants run every pipeline step by pasting commands into an SSH
 terminal. Each VM also serves a small password-protected web portal at
 `http://<ip>/` for viewing the HTML QC reports and opening BAM, VCF and BED
 files in igv.js, so nobody needs `scp` or a desktop IGV install.
 
-The old scripts (NFS share, per-VM conda install, ANNOVAR) are in
-`archived_scripts/` for reference only.
+## What you need on your laptop (Mac and Linux)
 
-## What you need on your laptop
-
-- [dovm](https://github.com/roysomak4/do-vm-manager) and `doctl`, both logged
-  in to the DigitalOcean account
+- [dovm](https://github.com/roysomak4/do-vm-manager) binary and `doctl`, both logged
+  in to the DigitalOcean account. See the [dovm](https://github.com/roysomak4/do-vm-manager) repository for install details
 - `rsync`, `ssh`, `curl`
 - Your indexed hg38 reference, as a directory or `.tar.gz`: one uncompressed
   FASTA with `chr` contig names, its `.fai`, and the bwa index (`.amb .ann .bwt .pac .sa`)
-- A password file for the participants, e.g. `pw.txt` (git-ignored). It is
+- A password file for the participants, e.g. `pw.txt` in the `instructors/scripts` folder (git-ignored). It is
   both the SSH password and the web portal password.
 
-Run every command below from this directory (`instructors/scripts`). dovm
-writes droplet IPs to `output/`, which the other scripts read.
+Run every command below from this directory (`instructors/scripts`). `dovm` writes droplet IPs to `output/` folder, which the other scripts read from.
 
-## 1. Build the image (once per course year, about an hour)
+## 1. Build the image (once per course, about an 25 minutes to an hour)
 
 ```sh
 dovm create dovm/prep.yaml
@@ -32,15 +28,17 @@ ip=$(awk '$1 == "prep-vm" { print $2 }' output/vms_ip_host.txt)
 
 The reference can be a directory or a `.tar.gz` with one top-level folder. A
 tarball is uploaded as is, checked against `<tarball>.sha256` if that file
-exists, and unpacked into `/opt/assets/hg38` on the droplet. On re-runs the
+exists, and unpacked into `/opt/assets/hg38` inside the droplet. On re-runs the
 upload is skipped once the reference is unpacked.
+
+The `dovm/prep.yaml` comes with default settings in this repo. Please feel free to edit the details, such as the linux OS type or droplet instance (CPU, RAM, storage by instance name provided by Digitalocean). `dovm init` opens up a droplet setup wizard to walkthrough options to create a fresh `yaml` file if desired.
 
 `upload_and_build.sh` uploads the reference (resumable), the build bundle and
 the workshop data, then runs `build/build_image.sh` on the droplet:
 
 | Step | Result on the image |
 |---|---|
-| Check the reference | `/opt/assets/hg38`: FASTA, `.fai`, bwa index present; `chr` names; warns if ALT contigs lack an `.alt` file |
+| Check the reference genome | `/opt/assets/hg38`: FASTA, `.fai`, bwa index present; `chr` names; warns if ALT contigs lack an `.alt` file |
 | System packages | Caddy, jq, tree; full `apt upgrade` |
 | `HOME_MODE 0755` | Participant home directories are readable by the web server |
 | Conda environment | `/opt/miniforge/envs/ngs`, including fastVEP, from `build/environment.yml`, or from `build/ngs-workshop.lock.txt` once it exists |
