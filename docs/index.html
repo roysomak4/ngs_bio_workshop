@@ -37,10 +37,10 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
 /* top bar */
 .bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
   padding: 10px max(16px, env(safe-area-inset-left)); background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.bar strong { font-size: .95rem; }
-.ipbox { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: .88rem; color: var(--muted); }
-.ipbox input { width: 150px; font: 500 .9rem var(--mono); padding: 5px 8px; border: 1px solid var(--line);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); font-size: 1.5rem; }
+.bar strong { font-size: 1.2rem; }
+.ipbox { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 1.2rem; color: var(--muted); }
+.ipbox input { width: 250px; font: 500 1.2rem var(--mono); padding: 5px 8px; border: 1px solid var(--line);
   border-radius: 6px; background: var(--surface); color: var(--fg); }
 .ipbox input:focus { border-color: var(--accent); outline: none; }
 
@@ -79,9 +79,11 @@ ul { padding-left: 1.2em; }
 .fact { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: .9rem; }
 .fact b { display: block; font-size: 1.05rem; }
 .intro { display: flex; flex-direction: column; gap: 16px; }
-.part { font: 600 .75rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+.part { font: 600 1.2rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
   padding-top: 8px; border-top: 1px solid var(--line); }
 
+#toc {font-size: 1.1rem;}
+.general-instructions li { margin-bottom: 1rem; }
 section.step { display: flex; flex-direction: column; gap: 14px; }
 .step-head { display: flex; align-items: center; gap: 12px; }
 .badge { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
@@ -155,15 +157,15 @@ footer { color: var(--muted); font-size: .85rem; }
 <main>
 
 <header class="intro">
-  <h1>From raw reads to benchmarked variant calls</h1>
-  <p class="lede">You will take sequencing reads from a tumor reference sample all the way to annotated variant calls, one command at a time. Then you will score your calls against the known answer and see what each change to the pipeline gains you.</p>
+  <h1>From raw reads (FASTQ files) to benchmarked variant calls (VCF)</h1>
+  <p class="lede">You will use the sequencing reads from a tumor cell line sample (FASTQ file) all the way to annotated variant calls, one command at a time. Then you will score your calls against the known answer.</p>
   <div class="facts">
-    <div class="fact"><b>OncoSpan</b>tumor reference standard, 18 known variants in 9 genes</div>
-    <div class="fact"><b>49,642 read pairs</b>Illumina, ~140 bp, 17 target regions</div>
-    <div class="fact"><b>GRCh38</b>hg38 reference genome</div>
+    <div class="fact"><b>Tumor gDNA</b>A tumor cell line, 18 known variants in 9 genes</div>
+    <div class="fact"><b>49,642 read pairs</b>Illumina NextSeq 2000, ~210 bp insert, 17 target regions</div>
+    <div class="fact"><b>GRCh38</b>Human reference genome</div>
   </div>
   <h3>How this lab works</h3>
-  <ul>
+  <ul class="general-instructions">
     <li><b>Run every command in your terminal.</b> Click <b>Copy</b> on a grey box, paste it into the terminal and press <kbd>Enter</kbd>. Wait for the prompt (<code>$</code>) to return before the next one. Paste with <kbd>Cmd</kbd>+<kbd>V</kbd> on macOS, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> on Linux, or a right-click in Windows PowerShell.</li>
     <li><b>View results in your browser.</b> Enter your VM's IP address at the top of this page and the <b>View</b> links below open your own results. Log in with the same username and password as SSH.</li>
     <li><b>"Look inside" boxes</b> are optional peeks at what a step changed. They are the best part of the lab, so open them if you have time.</li>
@@ -237,7 +239,6 @@ footer { color: var(--muted); font-size: .85rem; }
   <div class="step-head"><span class="badge">5</span><h2>Mark PCR duplicates</h2></div>
   <p>Library PCR makes identical copies of some fragments. Copies are not independent evidence, so <b>sambamba</b> flags them (SAM flag 1024) and the variant callers ignore them.</p>
   <pre><code>sambamba markdup -t $THREADS $SAMPLE.sorted.bam $SAMPLE.dedup.bam 2&gt; qc/$SAMPLE.markdup.log</code></pre>
-  <pre><code>samtools index $SAMPLE.dedup.bam</code></pre>
   <details class="peek"><summary>Look inside</summary>
     <p>How many reads are now marked as duplicates?</p>
     <pre><code>samtools flagstat $SAMPLE.dedup.bam</code></pre>
