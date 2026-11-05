@@ -25,7 +25,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .file { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
 .hint { font-size: .78rem; color: var(--muted); }
 .loci { display: flex; flex-wrap: wrap; gap: 6px; }
-#igv { padding: 8px; background: #fff; min-width: 0; }
+/* igv.js draws on white in both themes, so keep its inherited text and controls light-themed. */
+#igv { padding: 8px; background: #fff; color: #1b2420; color-scheme: light; min-width: 0; }
 label { font-size: .88rem; }
 .theme-toggle { font: 600 .8rem system-ui, sans-serif; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg); cursor: pointer; }
 .theme-toggle:hover { border-color: var(--accent); }
