@@ -97,7 +97,7 @@ td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:n
 <header style="display:flex;flex-direction:column;gap:14px">
   <div class="eyebrow">Repository review · ngs_bio_workshop</div>
   <h1>NGS Workshop Deployment Review</h1>
-  <div class="meta"><span>Revised 5 November 2026 (first issued 2 November)</span><span>Commit 140cf01</span><span>Pipeline from <code>bioinformatics_pipeline_and_software_list.md</code></span><span>dovm (do-vm-manager) reviewed</span></div>
+  <div class="meta"><span>Finalized 6 November 2026 (first issued 2 November)</span><span>Branch main</span><span>Pipeline from <code>bioinformatics_pipeline_and_software_list.md</code></span><span>dovm (do-vm-manager) reviewed</span></div>
   <p class="lede">The repo provisions one DigitalOcean VM per participant from a single pre-built snapshot, using the dovm droplet manager, and walks participants through a CLI pipeline. The 2026 session runs three variant-calling rounds against a known truth set: VarScan at 5% VAF, VarScan at a lower cutoff, then VarDict for the FLT3 ITD, each annotated with fastVEP and reviewed in IGV. <code>docs/index.html</code> is the participant guide and the source of truth for participant-facing commands.</p>
   <div class="strip" aria-label="Data journey taught in the workshop">
     <div class="stage" style="--c:var(--nt-a)"><b>FASTQ</b><span>49,642 read pairs, ~140 bp, 17 regions in 9 genes · fastqc, fastp</span></div>
@@ -109,11 +109,10 @@ td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:n
 </header>
 
 <section>
-  <h2>What needs attention first</h2>
+  <h2>Status</h2>
   <div class="keys">
-    <div class="key"><span class="chip high">Before class</span><h3>Record real results per round</h3><p>The R1–R3 columns in the truth table below are predictions. Run all three rounds on a test VM and replace them with the actual calls, since depth and strand filters can change the borderline cases.</p></div>
-    <div class="key"><span class="chip med">Medium</span><h3>Script the dataset preparation</h3><p>How the FASTQ was subset from the source BAMs, and how the FLT3 ITD reads were added, is not written down. A <code>make_workshop_data.sh</code> would let it be rebuilt.</p></div>
-    <div class="key"><span class="chip low">Low</span><h3>Expand the README</h3><p>The top-level README is one line. Add a course outline, data provenance and a quick start for instructors and participants.</p></div>
+    <div class="key"><span class="chip oos">Done</span><h3>Content tested end to end</h3><p>All three rounds were run on a test VM. The calls match the R1–R3 columns in the truth table below.</p></div>
+    <div class="key"><span class="chip oos">Done</span><h3>Findings resolved</h3><p>Every finding below is fixed, accepted by design, or closed. Ideas not taken up for 2026 are under <a href="#future">Future ideas</a>.</p></div>
   </div>
 </section>
 
@@ -161,7 +160,7 @@ flowchart LR
     <div>
       <h3>Why each round misses what it misses</h3>
       <ul>
-        <li><b>Round 1:</b> the 5% cutoff filters out the 3% and 4% calls by design. BRAF V600E at 6% sits right at the edge and may drop out depending on depth.</li>
+        <li><b>Round 1:</b> the 5% cutoff filters out the 3% and 4% calls by design. BRAF V600E (6% expected) is called at 5.7%, just above the cutoff.</li>
         <li><b>Round 2:</b> lowering the cutoff recovers those calls but lets in more noise. The benchmark's FP count shows the trade-off.</li>
         <li><b>Round 3:</b> no VarScan setting finds the FLT3 ITD. The 279 bp insertion is about twice the read length, so bwa soft-clips the reads instead of writing an insertion, and mpileup never sees one. VarDict assembles the soft-clipped reads into the ITD. The truth record's <code>VD/AF/RD/ALD</code> FORMAT fields look like VarDict output (AF 6.1% observed vs 8.25% expected), which suggests this has already been shown to work on this data.</li>
       </ul>
@@ -184,10 +183,10 @@ flowchart LR
     <tbody>
       <tr><td><span class="chip oos">Out of scope</span></td><td class="loc">dovm --login-user</td><td>Same simple password on every VM, password SSH for the participant account.</td><td>Accepted for short-lived teaching VMs. The participant account has no sudo, and root stays SSH-key only.</td></tr>
       <tr><td><span class="chip oos">By design</span></td><td class="loc">Caddyfile</td><td>The portal is plain HTTP with basic auth and the shared password.</td><td>Accepted: the VMs are short-lived and hold only synthetic data.</td></tr>
-      <tr><td><span class="chip med">Medium</span></td><td class="loc">data/ngs_data/</td><td>FASTQ and other binaries are committed to git; dataset preparation, including how the FLT3 ITD reads were added, is undocumented.</td><td>Add <code>make_workshop_data.sh</code> that rebuilds the FASTQ from the source BAMs. Optionally move binaries to Git LFS or a release asset.</td></tr>
-      <tr><td><span class="chip low">Low</span></td><td class="loc">ngs_ws_truth_vars.vcf</td><td>The committed file has swapped header types (<code>HIAF</code> String, <code>GENE</code> Float), undefined FORMAT fields on the FLT3 record, and <code>GENE=.</code> on 17 of 18 records.</td><td>Handled in the image: <code>build_image.sh</code> keeps the site columns, fixes the header types, fills <code>GENE</code> from the BED, and ships it bgzipped and indexed. Fixing the committed file too would remove the special case.</td></tr>
+      <tr><td><span class="chip oos">Closed</span></td><td class="loc">data/ngs_data/</td><td>FASTQ and other binaries are committed to git; dataset preparation, including how the FLT3 ITD reads were added, is undocumented.</td><td>Won't do: the committed FASTQ is the final workshop dataset and is not regenerated.</td></tr>
+      <tr><td><span class="chip oos">Done</span></td><td class="loc">ngs_ws_truth_vars.vcf</td><td>The committed file has swapped header types (<code>HIAF</code> String, <code>GENE</code> Float), undefined FORMAT fields on the FLT3 record, and <code>GENE=.</code> on 17 of 18 records.</td><td>Fixed in the committed file: sites only, <code>HIAF</code> Float and <code>GENE</code> String, <code>GENE</code> filled from the BED. <code>build_image.sh</code> still applies the same cleanup, which now leaves the file unchanged, then bgzips and indexes it.</td></tr>
       <tr><td><span class="chip oos">Done</span></td><td class="loc">ngs_ws_roi_sorted.bed</td><td>After padding, the FLT3 exon 13–15 intervals overlapped. VarDict works region by region, so a variant in an overlap could be reported twice.</td><td>Merged into one interval (<code>FLT3;NM_004119.3;exon-13-15</code>, <code>chr13:28033786-28034507</code>). The BED has 17 non-overlapping regions, and all 18 truth variants fall inside.</td></tr>
-      <tr><td><span class="chip low">Low</span></td><td class="loc">README.md</td><td>One line. No overview of the course, data, or how the parts fit.</td><td>Add course outline, data provenance (OncoSpan reference standard plus FLT3 ITD), and a quick start for each audience.</td></tr>
+      <tr><td><span class="chip oos">Done</span></td><td class="loc">README.md</td><td>One line. No overview of the course, data, or how the parts fit.</td><td>Rewritten: course summary, a participant section linking the guide, and an instructor section with doc links, repo layout and quick start.</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -307,16 +306,7 @@ dependencies:
   - python=3.12       # benchmark-vcf</pre>
   <p class="muted" style="font-size:.88rem">Tools from the 2026 list, plus mosdepth and MultiQC for BAM QC, and htslib, bcftools and Python for compression, benchmarking and the helper scripts. Caddy is an Ubuntu package, not part of the conda environment. The first build solves this file and writes <code>ngs-workshop.lock.txt</code>; commit it, and later builds install exactly those versions. <code>check-vm --full</code> runs VarDict through <code>teststrandbias.R</code>, so a missing R dependency is caught before class.</p>
 
-  <h3>Small dovm additions worth making</h3>
-  <div class="tbl"><table>
-    <thead><tr><th>Feature</th><th>Why it helps this course</th></tr></thead>
-    <tbody>
-      <tr><td><code>dovm snapshot &lt;host&gt;</code></td><td>Power off, snapshot and wait in one step. The whole image lifecycle then lives in dovm, with no separate <code>doctl</code> calls.</td></tr>
-      <tr><td>Wait until login works</td><td>A droplet shows <i>active</i> about a minute before cloud-init has created the login user. A <code>--wait-ssh</code> option on <code>create</code> or <code>status</code> would tell you when class can start.</td></tr>
-      <tr><td>Roster output</td><td>Write <code>output/roster.csv</code> (participant slot, hostname, IP, login user) to print handouts or project at the start of class.</td></tr>
-      <tr><td><code>--user-data file.yaml</code></td><td>Merge extra cloud-init with the login user, for example to render the portal password at boot instead of baking it into the image. Optional.</td></tr>
-    </tbody>
-  </table></div>
+  
 </section>
 
 <section>
@@ -377,7 +367,7 @@ dependencies:
   </table></div>
 
   <h3>Truth set and expected results per round</h3>
-  <p class="prose">I parsed <code>ngs_ws_truth_vars.vcf</code> with bcftools. All 18 records fall inside <code>ngs_ws_roi_sorted.bed</code>, with allele fractions from 3% to 47%. Shaded rows are the ones round 1 is expected to miss. BRAF V600E at 6% is borderline and makes a good discussion point.</p>
+  <br />
   <div class="tbl"><table>
     <thead><tr><th>Gene / exon</th><th>hg38 position</th><th>Change</th><th>Expected VAF</th><th>R1</th><th>R2</th><th>R3</th><th>Note</th></tr></thead>
     <tbody>
@@ -388,7 +378,7 @@ dependencies:
       <tr><td>FBXW7 ex14</td><td class="num">chr4:152323003</td><td class="num">TC&gt;T</td><td class="num">31%</td><td>✓</td><td>✓</td><td>✓</td><td>Frameshift, ABRA2 demo</td></tr>
       <tr><td>EGFR ex20</td><td class="num">chr7:55181370</td><td class="num">G&gt;A</td><td class="num">19%</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
       <tr class="miss"><td>EGFR ex21</td><td class="num">chr7:55191822</td><td class="num">T&gt;G</td><td class="num">3%</td><td>✗</td><td>✓</td><td>✓</td><td>L858R, below 5% cutoff</td></tr>
-      <tr><td>BRAF ex15</td><td class="num">chr7:140753336</td><td class="num">A&gt;T</td><td class="num">6%</td><td>?</td><td>✓</td><td>✓</td><td>V600E, at the edge in round 1</td></tr>
+      <tr><td>BRAF ex15</td><td class="num">chr7:140753336</td><td class="num">A&gt;T</td><td class="num">6%</td><td>✓</td><td>✓</td><td>✓</td><td>V600E, called at 5.7% in round 1, just above the cutoff</td></tr>
       <tr><td>KRAS ex2</td><td class="num">chr12:25245347</td><td class="num">C&gt;T</td><td class="num">13%</td><td>✓</td><td>✓</td><td>✓</td><td>G13D, three bases from G12D</td></tr>
       <tr class="miss"><td>KRAS ex2</td><td class="num">chr12:25245350</td><td class="num">C&gt;T</td><td class="num">4%</td><td>✗</td><td>✓</td><td>✓</td><td>G12D, below 5% cutoff</td></tr>
       <tr class="miss"><td>FLT3 ex14–15</td><td class="num">chr13:28033908</td><td class="num">C&gt;C + 279 bp</td><td class="num">8.25%</td><td>✗</td><td>✗</td><td>✓</td><td>ITD, longer than a read; VarDict only</td></tr>
@@ -401,19 +391,30 @@ dependencies:
       <tr><td>MAP2K1 ex3</td><td class="num">chr15:66436809</td><td class="num">C&gt;T</td><td class="num">31%</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
     </tbody>
   </table></div>
-  <p class="muted" style="font-size:.88rem">Expected VAFs come from the <code>HIAF</code> field. The R1–R3 columns are predictions, not measured results. Run the pipeline once on the prep VM and replace them with the actual calls before class, since depth and strand filters can change the borderline cases. Protein labels are standard hg38 hotspot coordinates; confirm them against <code>fastvep_results.xlsx</code> in <code>prep_temp_files.tar.gz</code>.</p>
-
-  <h3>Optional extension: a clinical report</h3>
-  <p class="prose">This is not in the 2026 pipeline list. If there is time, a <code>make_report.py</code> (add <code>jinja2</code> to the environment) could turn the round 3 fastVEP output into a molecular pathology–style report: QC from <code>fastp.json</code> and mosdepth, variants grouped by AMP/ASCO/CAP tier using fastVEP's ACMG and ClinVar columns, methods taken from the BAM <code>@PG</code> lines, and the per-round benchmark as a teaching appendix.</p>
+  <p class="muted" style="font-size:.88rem">Expected VAFs come from the <code>HIAF</code> field. The R1–R3 columns were confirmed on a test VM run</p>
 </section>
 
 <section>
-  <h2>Roadmap</h2>
-  <div>
-    <div class="phase"><div><div class="when">Before next class</div></div><div><h3>Confirm the content</h3><ul><li>Run all three rounds on a test VM and replace the predicted R1–R3 columns with the real results</li></ul></div></div>
-    <div class="phase"><div><div class="when">Next</div></div><div><h3>Provisioning and data</h3><ul><li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output</li><li>Script dataset preparation (<code>make_workshop_data.sh</code>, including the FLT3 ITD reads)</li><li>Expand the top-level README</li></ul></div></div>
-    <div class="phase"><div><div class="when">Later</div></div><div><h3>Participant experience</h3><ul><li><code>check-step</code> and <code>catch-up</code> commands</li><li>Shared on-screen benchmark table across rounds</li><li>Optional clinical report generator</li></ul></div></div>
-  </div>
+  <h2 id="future">Future ideas</h2>
+  <p class="prose muted">Not planned for the 2026 session; kept here in case a later course wants them.</p>
+  <ul class="prose">
+    <li>Small dovm additions: <code>snapshot</code>, wait-for-login, roster output (see <a href="#dovm-additions">below</a>)</li>
+    <li><code>check-step</code> and <code>catch-up</code> commands for participants</li>
+    <li>Shared on-screen benchmark table across rounds</li>
+    <li>Optional clinical report generator</li>
+  </ul>
+
+  <h3 id="dovm-additions">Small dovm additions worth making</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Feature</th><th>Why it helps this course</th></tr></thead>
+    <tbody>
+      <tr><td><code>dovm snapshot &lt;host&gt;</code></td><td>Power off, snapshot and wait in one step. The whole image lifecycle then lives in dovm, with no separate <code>doctl</code> calls.</td></tr>
+      <tr><td>Wait until login works</td><td>A droplet shows <i>active</i> about a minute before cloud-init has created the login user. A <code>--wait-ssh</code> option on <code>create</code> or <code>status</code> would tell you when class can start.</td></tr>
+      <tr><td>Roster output</td><td>Write <code>output/roster.csv</code> (participant slot, hostname, IP, login user) to print handouts or project at the start of class.</td></tr>
+      <tr><td><code>--user-data file.yaml</code></td><td>Merge extra cloud-init with the login user, for example to render the portal password at boot instead of baking it into the image. Optional.</td></tr>
+    </tbody>
+  </table></div>
+
   <h3>Repo layout</h3>
 <pre>ngs_bio_workshop/
 ├── README.md                          course overview, quick start per audience
@@ -423,9 +424,9 @@ dependencies:
 │   ├── build/build_image.sh, environment.yml, ngs-workshop.lock.txt
 │   ├── build/files/                   profile, workshop.env, Caddyfile, web/, bin/
 │   └── data/ngs_data/                 FASTQ, BED, truth VCF
-├── instructors/data_prep/             to do: make_workshop_data.sh (incl. FLT3 ITD reads)
 ├── docs/index.html                    participant guide (GitHub Pages): three rounds, copy buttons, IGV tasks
-└── participants/testing_the_guide.html  how to preview and publish the guide</pre>
+├── instructors/testing_the_guide.html   how to preview and publish the guide
+└── instructors/workshop_deployment_review.html   this review</pre>
 </section>
 
 </div>
