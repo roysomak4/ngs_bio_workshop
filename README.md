@@ -70,7 +70,7 @@ cp dovm/course_template.yaml dovm/course.yaml
 
 # Once per course: build and snapshot the image
 dovm create dovm/prep.yaml
-./upload_and_build.sh <prep-ip> pw.txt /path/to/hg38[.tar.gz]
+./upload_and_build.sh <prep-ip> pw.txt /path/to/hg38[.tar.gz] [/path/to/Homo_sapiens.GRCh38.<release>.gff3.gz]
 ./snapshot.sh <prep-ip> [snapshot-name]   # prints the snapshot ID
 dovm destroy dovm/prep.yaml
 

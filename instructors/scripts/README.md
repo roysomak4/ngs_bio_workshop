@@ -45,9 +45,23 @@ tarball is uploaded as is, checked against `<tarball>.sha256` if that file
 exists, and unpacked into `/opt/assets/hg38` inside the droplet. On re-runs the
 upload is skipped once the reference is unpacked.
 
+The Ensembl GFF3 (80–100 MB) can take up to 40 minutes to download from the
+Ensembl FTP on the droplet. If you have it locally, pass it as a fourth
+argument and it is uploaded instead (use `""` for the reference if it's already
+on the droplet):
+
+```sh
+./upload_and_build.sh "$ip" pw.txt ~/projects/assets/genomes/hg38/bwa-mem/bwa-mem.tar.gz \
+  ~/projects/assets/ensembl/Homo_sapiens.GRCh38.115.gff3.gz
+```
+
+Keep the Ensembl file name, `Homo_sapiens.GRCh38.<release>.gff3.gz`: the build
+uses that release instead of `ENSEMBL_RELEASE`. Without the argument, the build
+downloads the GFF3 as before.
+
 `dovm/prep.yaml` starts with the template's default settings. Please feel free to edit the details, such as the linux OS type or droplet instance (CPU, RAM, storage by instance name provided by Digitalocean). `dovm init` opens up a droplet setup wizard to walkthrough options to create a fresh `yaml` file if desired.
 
-`upload_and_build.sh` uploads the reference (resumable), the build bundle and
+`upload_and_build.sh` uploads the reference and the GFF3 if given (both resumable), the build bundle and
 the workshop data, then runs `build/build_image.sh` on the droplet:
 
 | Step | Result on the image |
@@ -56,7 +70,7 @@ the workshop data, then runs `build/build_image.sh` on the droplet:
 | System packages | Caddy, jq, tree; full `apt upgrade` |
 | `HOME_MODE 0755` | Participant home directories are readable by the web server |
 | Conda environment | `/opt/miniforge/envs/ngs`, including fastVEP, from `build/environment.yml`, or from `build/ngs-workshop.lock.txt` once it exists |
-| fastVEP data | Ensembl GFF3 (`ENSEMBL_RELEASE`, default 115) and a ClinVar database in `/opt/assets/fastvep`; set `BUILD_CLINVAR=0` to skip ClinVar |
+| fastVEP data | Ensembl GFF3 (uploaded, or downloaded for `ENSEMBL_RELEASE`, default 115) and a ClinVar database in `/opt/assets/fastvep`; set `BUILD_CLINVAR=0` to skip ClinVar |
 | Workshop data | `/etc/skel/data`: FASTQ, target BED, cleaned truth VCF (bgzipped and indexed); `/etc/skel/work/qc` |
 | Login environment | `/etc/profile.d/ngs.sh` activates the env; `~/workshop.env` sets `SAMPLE`, `REF`, `BED`, `R1`, `R2`, `TRUTH`, ... |
 | Commands | `/opt/ngs/bin`: `annotate-vcf`, `benchmark-vcf` (terminal table per round; `--html` writes a side-by-side report of all rounds), `check-vm` |
@@ -122,7 +136,7 @@ dovm/prep_template.yaml         the image-build droplet
 dovm/course_template.yaml       40 students + 2 spares from the snapshot
 dovm/course-test-one-user_template.yaml   one VM for testing the guide
 dovm/*.yaml (your copies)       git-ignored; hold your SSH key and snapshot IDs
-upload_and_build.sh             laptop: upload reference, bundle and data; run the build
+upload_and_build.sh             laptop: upload reference, GFF3, bundle and data; run the build
 snapshot.sh                     laptop: finalize, power off, snapshot
 check_vms.sh                    laptop: check every participant VM
 build/build_image.sh            droplet: builds the image (idempotent)
