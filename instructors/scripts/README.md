@@ -18,6 +18,20 @@ files in igv.js, so nobody needs `scp` or a desktop IGV install.
 
 Run every command below from this directory (`instructors/scripts`). `dovm` writes droplet IPs to `output/` folder, which the other scripts read from.
 
+## 0. Make your own dovm specs
+
+The repo ships only templates in `dovm/`. Don't edit them. Copy each one and
+put your own DigitalOcean SSH key ID(s) under `ssh_keys:` (list them with
+`doctl compute ssh-key list`):
+
+```sh
+cp dovm/prep_template.yaml dovm/prep.yaml
+cp dovm/course_template.yaml dovm/course.yaml
+cp dovm/course-test-one-user_template.yaml dovm/course-test-one-user.yaml   # optional, for testing the guide
+```
+
+The copies are git-ignored, so your SSH key and snapshot IDs never get committed.
+
 ## 1. Build the image (once per course, about 25 minutes to an hour)
 
 ```sh
@@ -31,7 +45,7 @@ tarball is uploaded as is, checked against `<tarball>.sha256` if that file
 exists, and unpacked into `/opt/assets/hg38` inside the droplet. On re-runs the
 upload is skipped once the reference is unpacked.
 
-The `dovm/prep.yaml` comes with default settings in this repo. Please feel free to edit the details, such as the linux OS type or droplet instance (CPU, RAM, storage by instance name provided by Digitalocean). `dovm init` opens up a droplet setup wizard to walkthrough options to create a fresh `yaml` file if desired.
+`dovm/prep.yaml` starts with the template's default settings. Please feel free to edit the details, such as the linux OS type or droplet instance (CPU, RAM, storage by instance name provided by Digitalocean). `dovm init` opens up a droplet setup wizard to walkthrough options to create a fresh `yaml` file if desired.
 
 `upload_and_build.sh` uploads the reference (resumable), the build bundle and
 the workshop data, then runs `build/build_image.sh` on the droplet:
@@ -67,7 +81,7 @@ dovm destroy dovm/prep.yaml
 
 `snapshot.sh` clears cloud-init state and the build files,
 powers the droplet off, snapshots it, and prints the snapshot ID and minimum
-disk size. Put the ID in `dovm/course.yaml` under `image:`.
+disk size. Put the ID in your `dovm/course.yaml` (and `dovm/course-test-one-user.yaml`) under `image:`.
 
 The snapshot's minimum disk size is the prep droplet's disk. Keep both specs on
 the same size, and never resize the prep droplet upward.
@@ -104,8 +118,10 @@ dovm destroy dovm/course.yaml
 ## Files
 
 ```
-dovm/prep.yaml                  the image-build droplet
-dovm/course.yaml                40 students + 2 spares from the snapshot
+dovm/prep_template.yaml         the image-build droplet
+dovm/course_template.yaml       40 students + 2 spares from the snapshot
+dovm/course-test-one-user_template.yaml   one VM for testing the guide
+dovm/*.yaml (your copies)       git-ignored; hold your SSH key and snapshot IDs
 upload_and_build.sh             laptop: upload reference, bundle and data; run the build
 snapshot.sh                     laptop: finalize, power off, snapshot
 check_vms.sh                    laptop: check every participant VM

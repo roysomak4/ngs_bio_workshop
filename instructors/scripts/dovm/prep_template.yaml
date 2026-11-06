@@ -1,12 +1,16 @@
-# One droplet for building the workshop image. Run from instructors/scripts:
+# TEMPLATE: don't edit this file. Copy it and fill in your own values:
+#   cp dovm/prep_template.yaml dovm/prep.yaml
+# dovm/prep.yaml is git-ignored, so your SSH key ID stays local.
+# Then, from instructors/scripts:
 #   dovm create dovm/prep.yaml
+# ssh_keys: your DigitalOcean SSH key ID(s), from `doctl compute ssh-key list`.
 # The snapshot's minimum disk size is this droplet's disk, so keep the size the
 # same as the student VMs in course.yaml and never resize it upward.
 name: ngs-prep
 region: nyc3
 image: ubuntu-24-04-x64
 ssh_keys:
-  - "51842390"
+  - "ENTER_SSH_KEY_ID"
 monitoring: true
 project: AMP 2026 NGS bioinformatics bootcamp
 roles:

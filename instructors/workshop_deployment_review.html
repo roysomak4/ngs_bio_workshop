@@ -95,7 +95,7 @@ td.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono);white-space:n
 <div class="wrap">
 
 <header style="display:flex;flex-direction:column;gap:14px">
-  <div class="eyebrow">Repository review · ngs_bio_workshop · branch 2026-upgrade</div>
+  <div class="eyebrow">Repository review · ngs_bio_workshop</div>
   <h1>NGS Workshop Deployment Review</h1>
   <div class="meta"><span>Revised 5 November 2026 (first issued 2 November)</span><span>Commit 140cf01</span><span>Pipeline from <code>bioinformatics_pipeline_and_software_list.md</code></span><span>dovm (do-vm-manager) reviewed</span></div>
   <p class="lede">The repo provisions one DigitalOcean VM per participant from a single pre-built snapshot, using the dovm droplet manager, and walks participants through a CLI pipeline. The 2026 session runs three variant-calling rounds against a known truth set: VarScan at 5% VAF, VarScan at a lower cutoff, then VarDict for the FLT3 ITD, each annotated with fastVEP and reviewed in IGV. <code>docs/index.html</code> is the participant guide and the source of truth for participant-facing commands.</p>
@@ -216,6 +216,10 @@ flowchart LR
     <div>
       <h3>Course run book</h3>
 <pre># from instructors/scripts
+# 0. Copy the templates (don't edit them), add your SSH key ID(s)
+cp dovm/prep_template.yaml dovm/prep.yaml
+cp dovm/course_template.yaml dovm/course.yaml
+
 # 1. Build the image (once per course year)
 dovm create dovm/prep.yaml
 ./upload_and_build.sh &lt;prep-ip&gt; pw.txt /path/to/hg38[.tar.gz]
@@ -239,8 +243,8 @@ dovm destroy dovm/course.yaml</pre>
       <h3>course.yaml</h3>
 <pre>name: ngs-course-2026
 region: nyc3               # same region as the snapshot
-image: 253068476           # snapshot ID from snapshot.sh
-ssh_keys: ["51842390"]
+image: ENTER_SNAPSHOT_ID   # snapshot ID from snapshot.sh
+ssh_keys: ["ENTER_SSH_KEY_ID"]
 monitoring: true
 project: AMP 2026 NGS bioinformatics bootcamp
 roles:
@@ -250,7 +254,7 @@ roles:
   spare:
     size: s-4vcpu-8gb
     hosts: [spare01, spare02]</pre>
-      <p class="muted" style="font-size:.88rem">Abbreviated here; <code>instructors/scripts/dovm/course.yaml</code> lists all 40 hosts. The size matches <code>dovm/prep.yaml</code>, so the snapshot's minimum disk always fits. 8 GB covers bwa mem on full hg38 (~5.5 GB). Run ABRA2 and VarDict one at a time with a capped Java heap.</p>
+      <p class="muted" style="font-size:.88rem">Abbreviated here; <code>instructors/scripts/dovm/course_template.yaml</code> lists all 40 hosts; copy it to <code>course.yaml</code> rather than editing it. The size matches <code>dovm/prep_template.yaml</code>, so the snapshot's minimum disk always fits. 8 GB covers bwa mem on full hg38 (~5.5 GB). Run ABRA2 and VarDict one at a time with a capped Java heap.</p>
     </div>
   </div>
 
@@ -414,7 +418,7 @@ dependencies:
 <pre>ngs_bio_workshop/
 ├── README.md                          course overview, quick start per audience
 ├── instructors/scripts/               see its README.md
-│   ├── dovm/prep.yaml, course.yaml, course-test-one-user.yaml
+│   ├── dovm/*_template.yaml            prep, course, one-user test (copy, don't edit)
 │   ├── upload_and_build.sh, snapshot.sh, check_vms.sh
 │   ├── build/build_image.sh, environment.yml, ngs-workshop.lock.txt
 │   ├── build/files/                   profile, workshop.env, Caddyfile, web/, bin/

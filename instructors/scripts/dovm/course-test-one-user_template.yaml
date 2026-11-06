@@ -1,0 +1,20 @@
+# TEMPLATE: don't edit this file. Copy it and fill in your own values:
+#   cp dovm/course-test-one-user_template.yaml dovm/course-test-one-user.yaml
+# dovm/course-test-one-user.yaml is git-ignored, so your SSH key ID and snapshot ID stay local.
+# Then, from instructors/scripts:
+#   dovm validate dovm/course-test-one-user.yaml
+#   dovm create dovm/course-test-one-user.yaml --login-user bioseq --login-password-file pw.txt
+# ssh_keys: your DigitalOcean SSH key ID(s), from `doctl compute ssh-key list`.
+# image: the snapshot ID that snapshot.sh prints. dovm validate rejects the
+# placeholder, so a forgotten edit fails before anything is created.
+name: ngs-course-test
+region: nyc3                # must be a region that holds the snapshot
+image: ENTER_SNAPSHOT_ID
+ssh_keys:
+  - "ENTER_SSH_KEY_ID"
+monitoring: true
+project: AMP 2026 NGS bioinformatics bootcamp
+roles:
+  student:
+    size: s-4vcpu-8gb
+    hosts: [student01]

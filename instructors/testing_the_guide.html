@@ -83,7 +83,9 @@ tr:last-child td { border-bottom: 0; }
   <h2>2. Test the full flow against a VM</h2>
   <p>igv.js is not part of the guide. The IGV page (<code>instructors/scripts/build/files/web/igv.html</code>) and the QC reports are served by Caddy on each VM. The guide only links to them, so they need a running VM.</p>
   <ol>
-    <li>From <code>instructors/scripts</code>, start the one-user test VM:
+    <li>From <code>instructors/scripts</code>, copy the one-user template (once) and set your SSH key ID and the snapshot ID in the copy. Don't edit the template itself; the copy is git-ignored.
+<pre>cp dovm/course-test-one-user_template.yaml dovm/course-test-one-user.yaml</pre></li>
+    <li>Start the one-user test VM:
 <pre>dovm create dovm/course-test-one-user.yaml --login-user bioseq --login-password-file pw.txt</pre></li>
     <li>Open the guide on Live Server and enter that VM's IP in the box at the top.</li>
     <li>Run a few pipeline steps over SSH, then click the <b>View</b> links: fastqc, MultiQC, the benchmark report and IGV all load from the VM (log in as <code>bioseq</code> with the shared password).</li>

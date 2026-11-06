@@ -3,3 +3,6 @@ output/
 # participant password files
 pw.txt
 *.password
+# working dovm specs hold your SSH key and snapshot IDs; only templates are tracked
+dovm/*.yaml
+!dovm/*_template.yaml
